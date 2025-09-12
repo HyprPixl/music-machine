@@ -42,4 +42,8 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Allow overriding via PORT env var; default to 5050
+    port = int(os.environ.get('PORT', 5050))
+    # Configure debug from environment; default False to avoid reloader issues in sandbox
+    debug_flag = str(os.environ.get('FLASK_DEBUG', 'False')).lower() in ('1', 'true', 'yes', 'on')
+    app.run(debug=debug_flag, use_reloader=debug_flag, host='0.0.0.0', port=port)
