@@ -1,0 +1,534 @@
+/* Music Machine - Retro Futuristic Styling */
+
+:root {
+  /* Color Palette - Inspired by Teenage Engineering */
+  --primary-bg: #1a1a1a;
+  --secondary-bg: #2d2d2d;
+  --accent-bg: #404040;
+  --primary-text: #ffffff;
+  --secondary-text: #cccccc;
+  --accent-text: #ff6b6b;
+  --grid-border: #555555;
+  --active-step: #00ff88;
+  --inactive-step: #333333;
+  --button-active: #ff4757;
+  --button-inactive: #747d8c;
+  
+  /* Spacing */
+  --grid-gap: 2px;
+  --section-padding: 16px;
+  --border-radius: 4px;
+  
+  /* Typography */
+  --font-mono: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  --font-size-small: 11px;
+  --font-size-normal: 13px;
+  --font-size-large: 16px;
+  --font-size-xl: 20px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font-size: var(--font-size-normal);
+  line-height: 1.4;
+  overflow-x: auto;
+}
+
+.app-container {
+  display: grid;
+  grid-template-areas: 
+    "header header"
+    "main sidebar";
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  gap: var(--grid-gap);
+}
+
+/* Header Styles */
+.header {
+  grid-area: header;
+  background: var(--secondary-bg);
+  padding: var(--section-padding);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--grid-border);
+}
+
+.logo h1 {
+  font-size: var(--font-size-xl);
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.logo .highlight {
+  color: var(--accent-text);
+}
+
+.transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transport-btn {
+  width: 40px;
+  height: 40px;
+  background: var(--accent-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  font-size: var(--font-size-large);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transport-btn:hover {
+  background: var(--button-active);
+  border-color: var(--button-active);
+}
+
+.transport-btn.active {
+  background: var(--button-active);
+  border-color: var(--button-active);
+}
+
+.bpm-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bpm-control label {
+  font-size: var(--font-size-small);
+  color: var(--secondary-text);
+}
+
+.bpm-control input {
+  width: 60px;
+  padding: 4px 8px;
+  background: var(--primary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.sequence-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.control-btn {
+  padding: 8px 16px;
+  background: var(--accent-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+  background: var(--button-active);
+  border-color: var(--button-active);
+}
+
+/* Main Sequencer Area */
+.sequencer-main {
+  grid-area: main;
+  padding: var(--section-padding);
+  overflow-y: auto;
+  background: var(--primary-bg);
+}
+
+.step-indicators {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--grid-gap);
+  margin-bottom: 16px;
+}
+
+.instrument-label {
+  background: var(--secondary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: var(--grid-gap);
+}
+
+.step-number {
+  background: var(--secondary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  padding: 8px;
+  text-align: center;
+  font-size: var(--font-size-small);
+  color: var(--secondary-text);
+}
+
+.step-number.active {
+  background: var(--active-step);
+  color: var(--primary-bg);
+  font-weight: bold;
+}
+
+/* Instrument Sections */
+.instrument-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  color: var(--accent-text);
+  font-size: var(--font-size-large);
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.tracks-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.track-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--grid-gap);
+  align-items: center;
+}
+
+.track-label {
+  background: var(--secondary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  padding: 12px;
+  font-size: var(--font-size-small);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.track-label:hover {
+  background: var(--accent-bg);
+}
+
+.step-buttons {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: var(--grid-gap);
+}
+
+.step-btn {
+  width: 100%;
+  height: 40px;
+  background: var(--inactive-step);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.step-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--active-step);
+}
+
+.step-btn.active {
+  background: var(--active-step);
+  border-color: var(--active-step);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.step-btn.playing {
+  background: var(--button-active);
+  border-color: var(--button-active);
+  box-shadow: 0 0 12px rgba(255, 71, 87, 0.7);
+}
+
+/* Sidebar Styles */
+.side-panel {
+  grid-area: sidebar;
+  background: var(--secondary-bg);
+  padding: var(--section-padding);
+  border-left: 1px solid var(--grid-border);
+  overflow-y: auto;
+}
+
+.side-panel h3 {
+  color: var(--accent-text);
+  font-size: var(--font-size-normal);
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.mixer-section,
+.effects-section,
+.pattern-section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--grid-border);
+}
+
+.pattern-section {
+  border-bottom: none;
+}
+
+.volume-controls,
+.effect-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.volume-control,
+.effect-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.volume-control label,
+.effect-control label {
+  font-size: var(--font-size-small);
+  color: var(--secondary-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.volume-control input[type="range"],
+.effect-control input[type="range"] {
+  width: 100%;
+  height: 20px;
+  background: var(--primary-bg);
+  border-radius: var(--border-radius);
+  outline: none;
+  appearance: none;
+}
+
+.volume-control input[type="range"]::-webkit-slider-thumb,
+.effect-control input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--active-step);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volume-value,
+.effect-value {
+  font-size: var(--font-size-small);
+  color: var(--active-step);
+  text-align: right;
+}
+
+.pattern-controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.pattern-btn {
+  padding: 12px;
+  background: var(--accent-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-normal);
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pattern-btn:hover {
+  background: var(--button-active);
+  border-color: var(--button-active);
+}
+
+.pattern-btn.active {
+  background: var(--active-step);
+  color: var(--primary-bg);
+  border-color: var(--active-step);
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  margin: 15% auto;
+  padding: 20px;
+  width: 500px;
+  max-width: 90%;
+}
+
+.close {
+  color: var(--secondary-text);
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--primary-text);
+}
+
+.modal h2 {
+  color: var(--accent-text);
+  margin-bottom: 16px;
+}
+
+.input-group {
+  margin-bottom: 16px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--secondary-text);
+  font-size: var(--font-size-small);
+}
+
+.input-group input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--primary-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  font-family: var(--font-mono);
+}
+
+.sequences-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  padding: 8px;
+}
+
+.sequence-item {
+  padding: 8px;
+  background: var(--accent-bg);
+  border-radius: var(--border-radius);
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sequence-item:hover {
+  background: var(--button-active);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  background: var(--accent-bg);
+  color: var(--primary-text);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-btn:hover {
+  background: var(--button-active);
+  border-color: var(--button-active);
+}
+
+.modal-btn.primary {
+  background: var(--active-step);
+  color: var(--primary-bg);
+  border-color: var(--active-step);
+}
+
+.modal-btn.primary:hover {
+  background: var(--button-active);
+  border-color: var(--button-active);
+  color: var(--primary-text);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .app-container {
+    grid-template-areas: 
+      "header"
+      "main"
+      "sidebar";
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+  
+  .side-panel {
+    border-left: none;
+    border-top: 1px solid var(--grid-border);
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .transport-controls {
+    order: 2;
+  }
+  
+  .sequence-controls {
+    order: 3;
+  }
+  
+  .track-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .step-buttons {
+    grid-template-columns: repeat(8, 1fr);
+  }
+  
+  .steps-grid {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
