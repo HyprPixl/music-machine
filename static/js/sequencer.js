@@ -53,6 +53,27 @@ class Sequencer {
         this.renderTracks();
         this.bindEvents();
         this.updateStepInterval();
+        // Apply initial mixer/effects values from UI so audio matches the visible state
+        const master = parseFloat(document.getElementById('master-volume').value || '0.8');
+        const drums = parseFloat(document.getElementById('drums-volume').value || '0.8');
+        const synths = parseFloat(document.getElementById('synths-volume').value || '0.8');
+        const reverb = parseFloat(document.getElementById('reverb-level').value || '0.2');
+        const delay = parseFloat(document.getElementById('delay-level').value || '0.1');
+        const filter = parseFloat(document.getElementById('filter-level').value || '0.0');
+
+        this.audioEngine.setMasterVolume(master);
+        this.audioEngine.setDrumsVolume(drums);
+        this.audioEngine.setSynthsVolume(synths);
+        this.audioEngine.setReverbLevel(reverb);
+        this.audioEngine.setDelayLevel(delay);
+        this.audioEngine.setFilterLevel(filter);
+
+        this.updateVolumeDisplay('master', master);
+        this.updateVolumeDisplay('drums', drums);
+        this.updateVolumeDisplay('synths', synths);
+        this.updateEffectDisplay('reverb', reverb);
+        this.updateEffectDisplay('delay', delay);
+        this.updateEffectDisplay('filter', filter);
     }
     
     renderStepIndicators() {
@@ -256,6 +277,8 @@ class Sequencer {
         this.isPlaying = true;
         document.getElementById('play-btn').classList.add('active');
         document.getElementById('play-btn').textContent = '⏸';
+        // Ensure audio context resumes inside this user gesture
+        this.audioEngine.ensureAudioContext();
         
         this.stepInterval = setInterval(() => {
             this.playStep();

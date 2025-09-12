@@ -26,8 +26,19 @@ class AudioEngine {
             
             // Create master gain node
             this.masterGain = this.audioContext.createGain();
-            this.masterGain.connect(this.audioContext.destination);
             this.masterGain.gain.value = 0.8;
+
+            // Add a gentle master compressor to tame peaks
+            this.masterCompressor = this.audioContext.createDynamicsCompressor();
+            this.masterCompressor.threshold.setValueAtTime(-12, this.audioContext.currentTime);
+            this.masterCompressor.knee.setValueAtTime(3, this.audioContext.currentTime);
+            this.masterCompressor.ratio.setValueAtTime(4, this.audioContext.currentTime);
+            this.masterCompressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
+            this.masterCompressor.release.setValueAtTime(0.25, this.audioContext.currentTime);
+
+            // Connect master chain
+            this.masterGain.connect(this.masterCompressor);
+            this.masterCompressor.connect(this.audioContext.destination);
             
             // Create section gain nodes
             this.drumsGain = this.audioContext.createGain();
@@ -101,7 +112,8 @@ class AudioEngine {
         oscillator.frequency.setValueAtTime(60, this.audioContext.currentTime);
         oscillator.frequency.exponentialRampToValueAtTime(0.1, this.audioContext.currentTime + 0.5);
         
-        gain.gain.setValueAtTime(1, this.audioContext.currentTime);
+        // Slightly reduce initial gain to balance with other drums
+        gain.gain.setValueAtTime(0.7, this.audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
         
         oscillator.connect(gain);
@@ -131,7 +143,7 @@ class AudioEngine {
         noiseFilter.frequency.value = 1000;
         
         const gain = this.audioContext.createGain();
-        gain.gain.setValueAtTime(0.7, this.audioContext.currentTime);
+        gain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
         
         noise.connect(noiseFilter);
@@ -161,7 +173,7 @@ class AudioEngine {
         filter.frequency.value = 8000;
         
         const gain = this.audioContext.createGain();
-        gain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+        gain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + (open ? 0.3 : 0.1));
         
         noise.connect(filter);
@@ -192,7 +204,7 @@ class AudioEngine {
         filter.Q.value = 0.5;
         
         const gain = this.audioContext.createGain();
-        gain.gain.setValueAtTime(0.8, this.audioContext.currentTime);
+        gain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1.0);
         
         noise.connect(filter);
@@ -226,7 +238,7 @@ class AudioEngine {
                 filter.Q.value = 2;
                 
                 const gain = this.audioContext.createGain();
-                gain.gain.setValueAtTime(0.6, this.audioContext.currentTime);
+                gain.gain.setValueAtTime(0.45, this.audioContext.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
                 
                 noise.connect(filter);
@@ -240,7 +252,7 @@ class AudioEngine {
     }
     
     // Synth sound generators
-    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5) {
+    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5, level = 0.5) {
         this.ensureAudioContext();
         
         const oscillator = this.audioContext.createOscillator();
@@ -251,10 +263,12 @@ class AudioEngine {
         
         // ADSR envelope
         const now = this.audioContext.currentTime;
+        const peak = Math.max(0, Math.min(1, level));
+        const sus = Math.max(0, Math.min(1, sustain)) * peak;
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(1, now + attack);
-        gain.gain.linearRampToValueAtTime(sustain, now + attack + decay);
-        gain.gain.setValueAtTime(sustain, now + duration - release);
+        gain.gain.linearRampToValueAtTime(peak, now + attack);
+        gain.gain.linearRampToValueAtTime(sus, now + attack + decay);
+        gain.gain.setValueAtTime(sus, now + duration - release);
         gain.gain.linearRampToValueAtTime(0, now + duration);
         
         oscillator.connect(gain);
@@ -332,16 +346,16 @@ class AudioEngine {
     playSynthSound(soundName, frequency = 440) {
         switch (soundName) {
             case 'bass':
-                this.generateSynth(frequency * 0.5, 'sawtooth', 0.5, 0.01, 0.3, 0.7, 0.5);
+                this.generateSynth(frequency * 0.5, 'sawtooth', 0.5, 0.01, 0.3, 0.6, 0.4, 0.45);
                 break;
             case 'lead':
-                this.generateSynth(frequency, 'square', 0.3, 0.05, 0.2, 0.5, 0.3);
+                this.generateSynth(frequency, 'square', 0.3, 0.02, 0.15, 0.5, 0.2, 0.35);
                 break;
             case 'pad':
-                this.generateSynth(frequency, 'sine', 1.0, 0.5, 0.3, 0.8, 1.0);
+                this.generateSynth(frequency, 'sine', 1.2, 0.4, 0.4, 0.8, 0.8, 0.4);
                 break;
             case 'arp':
-                this.generateSynth(frequency, 'triangle', 0.2, 0.01, 0.1, 0.3, 0.2);
+                this.generateSynth(frequency, 'triangle', 0.18, 0.01, 0.08, 0.3, 0.15, 0.3);
                 break;
         }
     }
