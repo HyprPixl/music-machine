@@ -43,9 +43,9 @@ class SequenceManager:
                 }
             },
             'volume': {
-                'master': 0.8,
-                'drums': 0.8,
-                'synths': 0.8
+                'master': 0.7,
+                'drums': 0.75,
+                'synths': 0.65
             },
             'effects': {
                 'reverb': 0.2,
