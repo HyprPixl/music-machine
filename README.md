@@ -1,5 +1,7 @@
 # Music Machine
 
+Live Demo: https://ai-frontiers-demo-bvd8fqaxece7e0ey.canadacentral-01.azurewebsites.net
+
 A Flask-based music sequencer inspired by Teenage Engineering's design aesthetic. Create beats and melodies on the go with a clean, grid-based interface.
 
 ## Features
