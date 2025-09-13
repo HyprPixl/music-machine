@@ -217,6 +217,11 @@ body {
   gap: var(--grid-gap);
 }
 
+.steps-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .step-number {
   background: var(--secondary-bg);
   border: 1px solid var(--grid-border);

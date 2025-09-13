@@ -159,7 +159,7 @@ class Sequencer {
     renderStepIndicators() {
         const container = document.getElementById('step-indicators');
         container.innerHTML = '';
-        container.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
+        container.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
         
         for (let i = 0; i < this.steps; i++) {
             const stepDiv = document.createElement('div');
@@ -173,6 +173,7 @@ class Sequencer {
     renderTracks() {
         this.renderDrumTracks();
         this.renderSynthTracks();
+        this.setupScrollSync();
     }
     
     renderDrumTracks() {
@@ -215,7 +216,9 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
-            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
+            const scroller = document.createElement('div');
+            scroller.className = 'steps-scroll steps-scroller';
             
             for (let i = 0; i < this.steps; i++) {
                 const stepBtn = document.createElement('button');
@@ -242,7 +245,8 @@ class Sequencer {
                 stepsContainer.appendChild(stepBtn);
             }
             
-            trackRow.appendChild(stepsContainer);
+            scroller.appendChild(stepsContainer);
+            trackRow.appendChild(scroller);
             container.appendChild(trackRow);
         });
     }
@@ -293,7 +297,9 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
-            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
+            const scroller = document.createElement('div');
+            scroller.className = 'steps-scroll steps-scroller';
             
             for (let i = 0; i < this.steps; i++) {
                 const stepBtn = document.createElement('button');
@@ -372,7 +378,8 @@ class Sequencer {
                 stepsContainer.appendChild(stepBtn);
             }
             
-            trackRow.appendChild(stepsContainer);
+            scroller.appendChild(stepsContainer);
+            trackRow.appendChild(scroller);
             container.appendChild(trackRow);
         });
     }
@@ -785,6 +792,26 @@ class Sequencer {
         this.updatePatternButtons();
         this.updateBarsDisplay();
         this.renderStepIndicators();
+        this.setupScrollSync();
+    }
+
+    // ---- Scroll synchronization ----
+    setupScrollSync() {
+        const top = document.getElementById('step-scroller');
+        const scrollers = Array.from(document.querySelectorAll('.steps-scroller'));
+        if (!top) return;
+        const all = [top, ...scrollers];
+        let syncing = false;
+        const bind = (el) => {
+            el.onscroll = () => {
+                if (syncing) return;
+                syncing = true;
+                const x = el.scrollLeft;
+                all.forEach(other => { if (other !== el) other.scrollLeft = x; });
+                syncing = false;
+            };
+        };
+        all.forEach(bind);
     }
     requestPattern(i) {
         if (i === this.patterns.active) return;
