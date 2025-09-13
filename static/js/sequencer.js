@@ -27,6 +27,9 @@ class Sequencer {
             pending: null,
             store: {}
         };
+        // Selection and row order tracking
+        this.activeCell = null; // { instrument, sound, step }
+        this.currentRowOrder = { drums: [], synths: [] };
         
         // Sequence data structure
         this.sequence = {
@@ -183,6 +186,7 @@ class Sequencer {
         const drumSounds = Object.keys(this.sequence.tracks.drums);
         // Active first, then removed
         drumSounds.sort((a,b) => (this.sequence.removed.drums[a] === this.sequence.removed.drums[b]) ? 0 : (this.sequence.removed.drums[a] ? 1 : -1));
+        this.currentRowOrder.drums = [...drumSounds];
         
         drumSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
@@ -234,11 +238,13 @@ class Sequencer {
                 // Left-click: activate cell (no toggle-off)
                 stepBtn.addEventListener('click', () => {
                     if (stepBtn._suppressClickNext) { stepBtn._suppressClickNext = false; return; }
+                    this.setActiveCell('drums', soundName, i);
                     this.setStep('drums', soundName, i, true);
                 });
                 // Right-click: deactivate cell
                 stepBtn.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
+                    this.setActiveCell('drums', soundName, i);
                     this.setStep('drums', soundName, i, false);
                 });
                 
@@ -257,6 +263,7 @@ class Sequencer {
         
         const synthSounds = Object.keys(this.sequence.tracks.synths);
         synthSounds.sort((a,b) => (this.sequence.removed.synths[a] === this.sequence.removed.synths[b]) ? 0 : (this.sequence.removed.synths[a] ? 1 : -1));
+        this.currentRowOrder.synths = [...synthSounds];
         
         // Ensure note arrays exist and match steps
         synthSounds.forEach(name => {
@@ -319,16 +326,19 @@ class Sequencer {
                 // Left-click: activate cell (no toggle-off)
                 stepBtn.addEventListener('click', () => {
                     if (stepBtn._suppressClickNext) { stepBtn._suppressClickNext = false; return; }
+                    this.setActiveCell('synths', soundName, i);
                     this.setStep('synths', soundName, i, true);
                 });
                 // Right-click: deactivate cell
                 stepBtn.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
+                    this.setActiveCell('synths', soundName, i);
                     this.setStep('synths', soundName, i, false);
                 });
 
                 // Drag up/down to change note
                 stepBtn.addEventListener('mousedown', (e) => {
+                    this.setActiveCell('synths', soundName, i);
                     const startMidi = this.synthNotes[soundName][i] ?? 69;
                     this._dragState = {
                         sound: soundName,
@@ -468,6 +478,13 @@ class Sequencer {
                 const target = parseInt(btn.dataset.pattern);
                 this.requestPattern(target);
             });
+        });
+
+        // Grid keyboard editing/navigation
+        document.addEventListener('keydown', (e) => {
+            // Ignore when typing in inputs
+            if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+            if (this.handleGridKeydown(e)) return;
         });
     }
 
@@ -623,6 +640,134 @@ class Sequencer {
         document.querySelectorAll('.step-number').forEach((indicator, index) => {
             indicator.classList.toggle('active', index === this.currentStep);
         });
+    }
+
+    // ---- Selection and keyboard editing ----
+    setActiveCell(instrument, sound, step) {
+        this.activeCell = { instrument, sound, step };
+        document.querySelectorAll('.step-btn.focused').forEach(el => el.classList.remove('focused'));
+        const btn = document.querySelector(`[data-instrument="${instrument}"][data-sound="${sound}"][data-step="${step}"]`);
+        if (btn) {
+            btn.classList.add('focused');
+            this.scrollCellIntoView(btn);
+        }
+    }
+    scrollCellIntoView(btn) {
+        const scroller = btn.closest('.steps-scroll');
+        if (!scroller) return;
+        const left = btn.offsetLeft;
+        const right = left + btn.offsetWidth;
+        const viewLeft = scroller.scrollLeft;
+        const viewRight = viewLeft + scroller.clientWidth;
+        const margin = 8;
+        if (left < viewLeft) scroller.scrollLeft = Math.max(0, left - margin);
+        else if (right > viewRight) scroller.scrollLeft = right - scroller.clientWidth + margin;
+        const top = document.getElementById('step-scroller');
+        if (top) top.scrollLeft = scroller.scrollLeft;
+    }
+    handleGridKeydown(e) {
+        if (!this.activeCell) return false;
+        const { instrument, sound, step } = this.activeCell;
+        const code = e.code;
+        const key = e.key;
+        const isSynth = instrument === 'synths';
+        const letters = ['C','D','E','F','G','A','B'];
+        if (isSynth && letters.includes(key.toUpperCase())) {
+            e.preventDefault();
+            this.setNoteByLetter(sound, step, key.toUpperCase());
+            this.setStep('synths', sound, step, true);
+            return true;
+        }
+        if (isSynth && key === '#') {
+            e.preventDefault();
+            this.adjustNote(1);
+            return true;
+        }
+        if (code === 'ArrowUp') {
+            if (isSynth) { e.preventDefault(); this.adjustNote(1); return true; }
+        }
+        if (code === 'ArrowDown') {
+            if (isSynth) { e.preventDefault(); this.adjustNote(-1); return true; }
+        }
+        if (code === 'ArrowLeft') {
+            e.preventDefault(); this.moveSelection(-1, 0); return true;
+        }
+        if (code === 'ArrowRight') {
+            e.preventDefault(); this.moveSelection(1, 0); return true;
+        }
+        if (code === 'Enter') {
+            e.preventDefault(); this.moveSelection(0, 1); return true;
+        }
+        if (code === 'Backspace') {
+            e.preventDefault(); this.setStep(instrument, sound, step, false); this.moveSelection(-1, 0); return true;
+        }
+        if (code === 'Tab') {
+            e.preventDefault(); this.jumpToNextActive(); return true;
+        }
+        return false;
+    }
+    moveSelection(dx, dy) {
+        if (!this.activeCell) return;
+        const { instrument, sound, step } = this.activeCell;
+        let newStep = Math.max(0, Math.min(this.steps - 1, step + dx));
+        let sounds = this.currentRowOrder[instrument] || [];
+        let idx = sounds.indexOf(sound);
+        if (dy !== 0 && sounds.length > 0) {
+            if (idx === -1) idx = 0;
+            let newIdx = (idx + dy + sounds.length) % sounds.length;
+            const newSound = sounds[newIdx];
+            this.setActiveCell(instrument, newSound, newStep);
+        } else {
+            this.setActiveCell(instrument, sound, newStep);
+        }
+    }
+    adjustNote(delta) {
+        if (!this.activeCell || this.activeCell.instrument !== 'synths') return;
+        const { sound, step } = this.activeCell;
+        let midi = this.synthNotes[sound][step] ?? 69;
+        midi = Math.max(48, Math.min(84, midi + delta));
+        this.synthNotes[sound][step] = midi;
+        const btn = document.querySelector(`[data-instrument="synths"][data-sound="${sound}"][data-step="${step}"]`);
+        if (btn) {
+            btn.textContent = this.midiToName(midi);
+            btn.style.borderColor = this.noteColorForMidi(midi);
+        }
+        this.setStep('synths', sound, step, true);
+    }
+    setNoteByLetter(sound, step, letter) {
+        const pcMap = { 'C':0,'D':2,'E':4,'F':5,'G':7,'A':9,'B':11 };
+        const targetPc = pcMap[letter];
+        if (targetPc == null) return;
+        let current = this.synthNotes[sound][step] ?? 69;
+        let best = current;
+        let bestDiff = 999;
+        for (let d = -12; d <= 12; d++) {
+            const cand = current + d;
+            if (cand < 48 || cand > 84) continue;
+            if (((cand % 12) + 12) % 12 === targetPc) {
+                const diff = Math.abs(d);
+                if (diff < bestDiff) { bestDiff = diff; best = cand; }
+            }
+        }
+        this.synthNotes[sound][step] = best;
+        const btn = document.querySelector(`[data-instrument="synths"][data-sound="${sound}"][data-step="${step}"]`);
+        if (btn) {
+            btn.textContent = this.midiToName(best);
+            btn.style.borderColor = this.noteColorForMidi(best);
+        }
+    }
+    jumpToNextActive() {
+        if (!this.activeCell) return;
+        const { instrument, sound, step } = this.activeCell;
+        const row = this.sequence.tracks[instrument][sound];
+        let j = (step + 1) % this.steps;
+        let wrapped = false;
+        while (j !== step) {
+            if (row[j]) { this.setActiveCell(instrument, sound, j); return; }
+            j = (j + 1) % this.steps;
+            if (j === 0) { if (wrapped) break; wrapped = true; }
+        }
+        this.moveSelection(1, 0);
     }
     
     setBpm(bpm) {
