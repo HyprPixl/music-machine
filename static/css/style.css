@@ -210,7 +210,7 @@ body {
 
 .track-row {
   display: grid;
-  grid-template-columns: 120px 70px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: var(--grid-gap);
   align-items: center;
 }
@@ -218,7 +218,7 @@ body {
 .track-row.removed .step-buttons { display: none; }
 .track-row.removed .track-label { opacity: 0.5; }
 
-.track-controls { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.track-controls { display: none; }
 
 input.knob[type="range"] {
   -webkit-appearance: none;
@@ -241,6 +241,8 @@ input.knob[type="range"]::-webkit-slider-thumb {
 .knob-value { font-size: 11px; color: #aaa; width: 28px; text-align: right; }
 
 .track-label {
+  position: relative;
+  overflow: hidden;
   background: var(--secondary-bg);
   border: 1px solid var(--grid-border);
   border-radius: var(--border-radius);
@@ -251,6 +253,19 @@ input.knob[type="range"]::-webkit-slider-thumb {
   letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+.track-label .volume-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  background: var(--active-step);
+  opacity: 0.35;
+}
+.track-label .label-text {
+  position: relative;
+  z-index: 1;
 }
 
 .track-label:hover {

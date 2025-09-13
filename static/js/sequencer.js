@@ -65,6 +65,31 @@ class Sequencer {
         this.initializeSequencer();
     }
 
+    // Bind left-drag on label to set per-instrument volume with fill
+    bindLabelVolumeDrag(labelEl, section, soundName) {
+        const fill = labelEl.querySelector('.volume-fill');
+        const onMove = (ev) => {
+            const rect = labelEl.getBoundingClientRect();
+            const ratio = (ev.clientX - rect.left) / rect.width;
+            const v = Math.max(0, Math.min(1, ratio));
+            this.setInstrumentVolume(section, soundName, v);
+            if (fill) fill.style.width = `${Math.round(v * 100)}%`;
+        };
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            document.body.style.userSelect = '';
+        };
+        labelEl.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // left only
+            e.preventDefault();
+            document.body.style.userSelect = 'none';
+            onMove(e);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        });
+    }
+
     // ---- Note helpers ----
     midiToFreq(midi) {
         return 440 * Math.pow(2, (midi - 69) / 12);
@@ -150,38 +175,26 @@ class Sequencer {
             // Track label
             const label = document.createElement('div');
             label.className = 'track-label';
-            label.textContent = soundName.toUpperCase();
+            const volFill = document.createElement('div');
+            volFill.className = 'volume-fill';
+            const labelText = document.createElement('span');
+            labelText.className = 'label-text';
+            labelText.textContent = soundName.toUpperCase();
+            label.appendChild(volFill);
+            label.appendChild(labelText);
             label.dataset.instrument = 'drums';
             label.dataset.sound = soundName;
-            label.title = 'Click to remove/restore this instrument';
-            label.addEventListener('click', () => {
+            label.title = 'Drag to set volume · Right-click to deactivate/restore';
+            const vol = this.sequence.volume.perInstrument?.drums?.[soundName] ?? 0.8;
+            volFill.style.width = `${Math.round(vol * 100)}%`;
+            this.bindLabelVolumeDrag(label, 'drums', soundName);
+            label.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
                 this.toggleInstrumentRemoved('drums', soundName);
-                // Move row to end if removed; or re-render to reorder
                 this.renderDrumTracks();
             });
             trackRow.appendChild(label);
 
-            // Per-instrument volume knob
-            const controls = document.createElement('div');
-            controls.className = 'track-controls';
-            const knob = document.createElement('input');
-            knob.type = 'range';
-            knob.min = '0';
-            knob.max = '1';
-            knob.step = '0.01';
-            knob.value = this.sequence.volume.perInstrument.drums[soundName];
-            knob.className = 'knob';
-            knob.addEventListener('input', (e) => {
-                const v = parseFloat(e.target.value);
-                this.setInstrumentVolume('drums', soundName, v);
-            });
-            const knobVal = document.createElement('span');
-            knobVal.className = 'knob-value';
-            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.drums[soundName] * 100);
-            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
-            controls.appendChild(knob);
-            controls.appendChild(knobVal);
-            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -198,8 +211,15 @@ class Sequencer {
                     stepBtn.classList.add('active');
                 }
                 
+                // Left-click: activate cell (no toggle-off)
                 stepBtn.addEventListener('click', () => {
-                    this.toggleStep('drums', soundName, i);
+                    if (stepBtn._suppressClickNext) { stepBtn._suppressClickNext = false; return; }
+                    this.setStep('drums', soundName, i, true);
+                });
+                // Right-click: deactivate cell
+                stepBtn.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this.setStep('drums', soundName, i, false);
                 });
                 
                 stepsContainer.appendChild(stepBtn);
@@ -232,37 +252,26 @@ class Sequencer {
             // Track label
             const label = document.createElement('div');
             label.className = 'track-label';
-            label.textContent = soundName.toUpperCase();
+            const volFill = document.createElement('div');
+            volFill.className = 'volume-fill';
+            const labelText = document.createElement('span');
+            labelText.className = 'label-text';
+            labelText.textContent = soundName.toUpperCase();
+            label.appendChild(volFill);
+            label.appendChild(labelText);
             label.dataset.instrument = 'synths';
             label.dataset.sound = soundName;
-            label.title = 'Click to remove/restore this instrument';
-            label.addEventListener('click', () => {
+            label.title = 'Drag to set volume · Right-click to deactivate/restore';
+            const vol = this.sequence.volume.perInstrument?.synths?.[soundName] ?? 0.7;
+            volFill.style.width = `${Math.round(vol * 100)}%`;
+            this.bindLabelVolumeDrag(label, 'synths', soundName);
+            label.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
                 this.toggleInstrumentRemoved('synths', soundName);
                 this.renderSynthTracks();
             });
             trackRow.appendChild(label);
 
-            // Per-instrument volume knob
-            const controls = document.createElement('div');
-            controls.className = 'track-controls';
-            const knob = document.createElement('input');
-            knob.type = 'range';
-            knob.min = '0';
-            knob.max = '1';
-            knob.step = '0.01';
-            knob.value = this.sequence.volume.perInstrument.synths[soundName];
-            knob.className = 'knob';
-            knob.addEventListener('input', (e) => {
-                const v = parseFloat(e.target.value);
-                this.setInstrumentVolume('synths', soundName, v);
-            });
-            const knobVal = document.createElement('span');
-            knobVal.className = 'knob-value';
-            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.synths[soundName] * 100);
-            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
-            controls.appendChild(knob);
-            controls.appendChild(knobVal);
-            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -283,9 +292,15 @@ class Sequencer {
                     stepBtn.style.borderColor = this.noteColorForMidi(midi);
                 }
                 
-                // Click toggles active state
+                // Left-click: activate cell (no toggle-off)
                 stepBtn.addEventListener('click', () => {
-                    this.toggleStep('synths', soundName, i);
+                    if (stepBtn._suppressClickNext) { stepBtn._suppressClickNext = false; return; }
+                    this.setStep('synths', soundName, i, true);
+                });
+                // Right-click: deactivate cell
+                stepBtn.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this.setStep('synths', soundName, i, false);
                 });
 
                 // Drag up/down to change note
@@ -308,8 +323,7 @@ class Sequencer {
                         midi = Math.max(48, Math.min(84, midi)); // clamp 4 octaves
                         // If we start dragging and the step isn't active, activate it now
                         if (!this._dragState.activatedOnDrag && !this.sequence.tracks.synths[this._dragState.sound][this._dragState.step]) {
-                            this.sequence.tracks.synths[this._dragState.sound][this._dragState.step] = true;
-                            this._dragState.btn.classList.add('active');
+                            this.setStep('synths', this._dragState.sound, this._dragState.step, true);
                             this._dragState.activatedOnDrag = true;
                         }
                         if (midi !== this.synthNotes[this._dragState.sound][this._dragState.step]) {
@@ -324,9 +338,10 @@ class Sequencer {
                     };
                     const onUp = (ev) => {
                         if (this._dragState && this._dragState.moved) {
-                            // Prevent click toggle if we dragged
+                            // Prevent click after drag
                             ev.preventDefault();
                             ev.stopPropagation();
+                            stepBtn._suppressClickNext = true;
                         }
                         window.removeEventListener('mousemove', onMove);
                         window.removeEventListener('mouseup', onUp);
@@ -414,6 +429,35 @@ class Sequencer {
         this.sequence.volume.perInstrument[section][sound] = value;
         // Apply to audio engine
         this.audioEngine.setInstrumentVolume(section, sound, value);
+    }
+    
+    // Set a step to a given boolean state and update UI
+    setStep(instrument, sound, step, value) {
+        this.sequence.tracks[instrument][sound][step] = !!value;
+        const stepBtn = document.querySelector(
+            `[data-instrument="${instrument}"][data-sound="${sound}"][data-step="${step}"]`
+        );
+        if (stepBtn) {
+            stepBtn.classList.toggle('active', !!value);
+            if (instrument === 'synths') {
+                if (value) {
+                    const midi = this.synthNotes[sound]?.[step] ?? 69;
+                    stepBtn.textContent = this.midiToName(midi);
+                    stepBtn.style.borderColor = this.noteColorForMidi(midi);
+                } else {
+                    stepBtn.textContent = '';
+                    stepBtn.style.borderColor = '';
+                }
+            }
+        }
+        if (value) {
+            if (instrument === 'drums') {
+                this.audioEngine.playDrumSound(sound);
+            } else {
+                const midi = this.synthNotes[sound]?.[step] ?? 69;
+                this.audioEngine.playSynthSound(sound, this.midiToFreq(midi));
+            }
+        }
     }
     
     toggleStep(instrument, sound, step) {
