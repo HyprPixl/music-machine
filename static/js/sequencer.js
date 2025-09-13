@@ -681,9 +681,26 @@ class Sequencer {
             this.moveSelection(1, 0);
             return true;
         }
+        // Flat (lower by semitone) using lowercase 'b' when not combined with Shift
+        if (isSynth && key === 'b' && !e.shiftKey) {
+            e.preventDefault();
+            this.adjustNote(-1);
+            return true;
+        }
         if (isSynth && key === '#') {
             e.preventDefault();
             this.adjustNote(1);
+            return true;
+        }
+        // Octave up/down with Alt/Option + Up/Down
+        if (isSynth && e.altKey && code === 'ArrowUp') {
+            e.preventDefault();
+            this.adjustNote(12);
+            return true;
+        }
+        if (isSynth && e.altKey && code === 'ArrowDown') {
+            e.preventDefault();
+            this.adjustNote(-12);
             return true;
         }
         if (code === 'ArrowUp') {
