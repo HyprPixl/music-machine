@@ -10,6 +10,7 @@ class AudioEngine {
         this.synthsGain = null;
         this.isInitialized = false;
         this.sampleRate = 44100;
+        this.instrumentGains = { drums: {}, synths: {} };
         
         // Effects
         this.reverb = null;
@@ -48,6 +49,23 @@ class AudioEngine {
             this.synthsGain = this.audioContext.createGain();
             this.synthsGain.connect(this.masterGain);
             this.synthsGain.gain.value = 0.8;
+
+            // Per-instrument gain nodes for individual volume control
+            const drumNames = ['kick', 'snare', 'hihat', 'openhat', 'crash', 'clap'];
+            drumNames.forEach(name => {
+                const g = this.audioContext.createGain();
+                g.gain.value = 0.8; // default per-instrument level
+                g.connect(this.drumsGain);
+                this.instrumentGains.drums[name] = g;
+            });
+
+            const synthNames = ['bass', 'lead', 'pad', 'arp'];
+            synthNames.forEach(name => {
+                const g = this.audioContext.createGain();
+                g.gain.value = 0.8; // default per-instrument level
+                g.connect(this.synthsGain);
+                this.instrumentGains.synths[name] = g;
+            });
             
             // Initialize effects
             this.initializeEffects();
@@ -117,7 +135,8 @@ class AudioEngine {
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
         
         oscillator.connect(gain);
-        gain.connect(this.drumsGain);
+        // Route through per-instrument gain
+        gain.connect(this.instrumentGains.drums['kick'] || this.drumsGain);
         
         oscillator.start();
         oscillator.stop(this.audioContext.currentTime + 0.5);
@@ -148,13 +167,13 @@ class AudioEngine {
         
         noise.connect(noiseFilter);
         noiseFilter.connect(gain);
-        gain.connect(this.drumsGain);
+        gain.connect(this.instrumentGains.drums['snare'] || this.drumsGain);
         
         noise.start();
         noise.stop(this.audioContext.currentTime + 0.3);
     }
     
-    generateHiHat(open = false) {
+    generateHiHat(open = false, key = 'hihat') {
         this.ensureAudioContext();
         
         const bufferSize = this.sampleRate * (open ? 0.3 : 0.1);
@@ -178,7 +197,7 @@ class AudioEngine {
         
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(this.drumsGain);
+        gain.connect(this.instrumentGains.drums[key] || this.drumsGain);
         
         noise.start();
         noise.stop(this.audioContext.currentTime + (open ? 0.3 : 0.1));
@@ -209,7 +228,7 @@ class AudioEngine {
         
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(this.drumsGain);
+        gain.connect(this.instrumentGains.drums['crash'] || this.drumsGain);
         
         noise.start();
         noise.stop(this.audioContext.currentTime + 1.0);
@@ -243,7 +262,7 @@ class AudioEngine {
                 
                 noise.connect(filter);
                 filter.connect(gain);
-                gain.connect(this.drumsGain);
+                gain.connect(this.instrumentGains.drums['clap'] || this.drumsGain);
                 
                 noise.start();
                 noise.stop(this.audioContext.currentTime + 0.05);
@@ -252,7 +271,7 @@ class AudioEngine {
     }
     
     // Synth sound generators
-    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5, level = 0.5) {
+    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5, level = 0.5, key = 'lead') {
         this.ensureAudioContext();
         
         const oscillator = this.audioContext.createOscillator();
@@ -272,7 +291,9 @@ class AudioEngine {
         gain.gain.linearRampToValueAtTime(0, now + duration);
         
         oscillator.connect(gain);
-        gain.connect(this.synthsGain);
+        // Route through per-instrument gain
+        const target = this.instrumentGains.synths[key] || this.synthsGain;
+        gain.connect(target);
         
         oscillator.start();
         oscillator.stop(now + duration);
@@ -328,10 +349,10 @@ class AudioEngine {
                 this.generateSnareDrum();
                 break;
             case 'hihat':
-                this.generateHiHat(false);
+                this.generateHiHat(false, 'hihat');
                 break;
             case 'openhat':
-                this.generateHiHat(true);
+                this.generateHiHat(true, 'openhat');
                 break;
             case 'crash':
                 this.generateCrash();
@@ -346,17 +367,25 @@ class AudioEngine {
     playSynthSound(soundName, frequency = 440) {
         switch (soundName) {
             case 'bass':
-                this.generateSynth(frequency * 0.5, 'sawtooth', 0.5, 0.01, 0.3, 0.6, 0.4, 0.45);
+                this.generateSynth(frequency * 0.5, 'sawtooth', 0.5, 0.01, 0.3, 0.6, 0.4, 0.45, 'bass');
                 break;
             case 'lead':
-                this.generateSynth(frequency, 'square', 0.3, 0.02, 0.15, 0.5, 0.2, 0.35);
+                this.generateSynth(frequency, 'square', 0.3, 0.02, 0.15, 0.5, 0.2, 0.35, 'lead');
                 break;
             case 'pad':
-                this.generateSynth(frequency, 'sine', 1.2, 0.4, 0.4, 0.8, 0.8, 0.4);
+                this.generateSynth(frequency, 'sine', 1.2, 0.4, 0.4, 0.8, 0.8, 0.4, 'pad');
                 break;
             case 'arp':
-                this.generateSynth(frequency, 'triangle', 0.18, 0.01, 0.08, 0.3, 0.15, 0.3);
+                this.generateSynth(frequency, 'triangle', 0.18, 0.01, 0.08, 0.3, 0.15, 0.3, 'arp');
                 break;
+        }
+    }
+
+    // Per-instrument volume control
+    setInstrumentVolume(section, name, value) {
+        const group = this.instrumentGains[section];
+        if (group && group[name]) {
+            group[name].gain.value = value;
         }
     }
 }

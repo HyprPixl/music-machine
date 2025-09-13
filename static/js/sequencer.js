@@ -36,12 +36,20 @@ class Sequencer {
             volume: {
                 master: 0.8,
                 drums: 0.8,
-                synths: 0.8
+                synths: 0.8,
+                perInstrument: {
+                    drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
+                    synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+                }
             },
             effects: {
                 reverb: 0.2,
                 delay: 0.1,
                 filter: 0.0
+            },
+            removed: {
+                drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
+                synths: { bass: false, lead: false, pad: false, arp: false }
             }
         };
         
@@ -99,10 +107,13 @@ class Sequencer {
         container.innerHTML = '';
         
         const drumSounds = Object.keys(this.sequence.tracks.drums);
+        // Active first, then removed
+        drumSounds.sort((a,b) => (this.sequence.removed.drums[a] === this.sequence.removed.drums[b]) ? 0 : (this.sequence.removed.drums[a] ? 1 : -1));
         
         drumSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
             trackRow.className = 'track-row';
+            if (this.sequence.removed.drums[soundName]) trackRow.classList.add('removed');
             
             // Track label
             const label = document.createElement('div');
@@ -110,10 +121,35 @@ class Sequencer {
             label.textContent = soundName.toUpperCase();
             label.dataset.instrument = 'drums';
             label.dataset.sound = soundName;
+            label.title = 'Click to remove/restore this instrument';
             label.addEventListener('click', () => {
-                this.audioEngine.playDrumSound(soundName);
+                this.toggleInstrumentRemoved('drums', soundName);
+                // Move row to end if removed; or re-render to reorder
+                this.renderDrumTracks();
             });
             trackRow.appendChild(label);
+
+            // Per-instrument volume knob
+            const controls = document.createElement('div');
+            controls.className = 'track-controls';
+            const knob = document.createElement('input');
+            knob.type = 'range';
+            knob.min = '0';
+            knob.max = '1';
+            knob.step = '0.01';
+            knob.value = this.sequence.volume.perInstrument.drums[soundName];
+            knob.className = 'knob';
+            knob.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                this.setInstrumentVolume('drums', soundName, v);
+            });
+            const knobVal = document.createElement('span');
+            knobVal.className = 'knob-value';
+            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.drums[soundName] * 100);
+            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
+            controls.appendChild(knob);
+            controls.appendChild(knobVal);
+            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -147,10 +183,12 @@ class Sequencer {
         container.innerHTML = '';
         
         const synthSounds = Object.keys(this.sequence.tracks.synths);
+        synthSounds.sort((a,b) => (this.sequence.removed.synths[a] === this.sequence.removed.synths[b]) ? 0 : (this.sequence.removed.synths[a] ? 1 : -1));
         
         synthSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
             trackRow.className = 'track-row';
+            if (this.sequence.removed.synths[soundName]) trackRow.classList.add('removed');
             
             // Track label
             const label = document.createElement('div');
@@ -158,10 +196,34 @@ class Sequencer {
             label.textContent = soundName.toUpperCase();
             label.dataset.instrument = 'synths';
             label.dataset.sound = soundName;
+            label.title = 'Click to remove/restore this instrument';
             label.addEventListener('click', () => {
-                this.audioEngine.playSynthSound(soundName, 440);
+                this.toggleInstrumentRemoved('synths', soundName);
+                this.renderSynthTracks();
             });
             trackRow.appendChild(label);
+
+            // Per-instrument volume knob
+            const controls = document.createElement('div');
+            controls.className = 'track-controls';
+            const knob = document.createElement('input');
+            knob.type = 'range';
+            knob.min = '0';
+            knob.max = '1';
+            knob.step = '0.01';
+            knob.value = this.sequence.volume.perInstrument.synths[soundName];
+            knob.className = 'knob';
+            knob.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                this.setInstrumentVolume('synths', soundName, v);
+            });
+            const knobVal = document.createElement('span');
+            knobVal.className = 'knob-value';
+            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.synths[soundName] * 100);
+            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
+            controls.appendChild(knob);
+            controls.appendChild(knobVal);
+            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -249,6 +311,18 @@ class Sequencer {
             this.updateEffectDisplay('filter', value);
         });
     }
+
+    toggleInstrumentRemoved(section, sound) {
+        const current = this.sequence.removed[section][sound];
+        this.sequence.removed[section][sound] = !current;
+    }
+
+    setInstrumentVolume(section, sound, value) {
+        // Update sequence state
+        this.sequence.volume.perInstrument[section][sound] = value;
+        // Apply to audio engine
+        this.audioEngine.setInstrumentVolume(section, sound, value);
+    }
     
     toggleStep(instrument, sound, step) {
         const currentState = this.sequence.tracks[instrument][sound][step];
@@ -308,17 +382,17 @@ class Sequencer {
         // Clear previous playing indicators
         this.clearPlayingSteps();
         
-        // Play drum sounds
+        // Play drum sounds (skip removed)
         Object.keys(this.sequence.tracks.drums).forEach(soundName => {
-            if (this.sequence.tracks.drums[soundName][step]) {
+            if (!this.sequence.removed.drums[soundName] && this.sequence.tracks.drums[soundName][step]) {
                 this.audioEngine.playDrumSound(soundName);
                 this.highlightPlayingStep('drums', soundName, step);
             }
         });
         
-        // Play synth sounds
+        // Play synth sounds (skip removed)
         Object.keys(this.sequence.tracks.synths).forEach(soundName => {
-            if (this.sequence.tracks.synths[soundName][step]) {
+            if (!this.sequence.removed.synths[soundName] && this.sequence.tracks.synths[soundName][step]) {
                 this.audioEngine.playSynthSound(soundName, 440);
                 this.highlightPlayingStep('synths', soundName, step);
             }

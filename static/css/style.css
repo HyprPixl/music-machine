@@ -210,10 +210,35 @@ body {
 
 .track-row {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 120px 70px 1fr;
   gap: var(--grid-gap);
   align-items: center;
 }
+
+.track-row.removed .step-buttons { display: none; }
+.track-row.removed .track-label { opacity: 0.5; }
+
+.track-controls { display: flex; align-items: center; gap: 6px; justify-content: center; }
+
+input.knob[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 48px;
+  height: 48px;
+  background: radial-gradient(circle at 30% 30%, #555, #333 60%);
+  border-radius: 50%;
+  border: 1px solid #222;
+}
+input.knob[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--active-step);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #000;
+}
+.knob-value { font-size: 11px; color: #aaa; width: 28px; text-align: right; }
 
 .track-label {
   background: var(--secondary-bg);
@@ -519,10 +544,7 @@ body {
     order: 3;
   }
   
-  .track-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
+  .track-row { grid-template-columns: 1fr; gap: 8px; }
   
   .step-buttons {
     grid-template-columns: repeat(8, 1fr);
