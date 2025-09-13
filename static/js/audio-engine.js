@@ -10,6 +10,7 @@ class AudioEngine {
         this.synthsGain = null;
         this.isInitialized = false;
         this.sampleRate = 44100;
+        this.instrumentGains = { drums: {}, synths: {} };
         
         // Effects
         this.reverb = null;
@@ -26,17 +27,45 @@ class AudioEngine {
             
             // Create master gain node
             this.masterGain = this.audioContext.createGain();
-            this.masterGain.connect(this.audioContext.destination);
-            this.masterGain.gain.value = 0.7;
+            this.masterGain.gain.value = 0.8;
+
+            // Add a gentle master compressor to tame peaks
+            this.masterCompressor = this.audioContext.createDynamicsCompressor();
+            this.masterCompressor.threshold.setValueAtTime(-12, this.audioContext.currentTime);
+            this.masterCompressor.knee.setValueAtTime(3, this.audioContext.currentTime);
+            this.masterCompressor.ratio.setValueAtTime(4, this.audioContext.currentTime);
+            this.masterCompressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
+            this.masterCompressor.release.setValueAtTime(0.25, this.audioContext.currentTime);
+
+            // Connect master chain
+            this.masterGain.connect(this.masterCompressor);
+            this.masterCompressor.connect(this.audioContext.destination);
             
             // Create section gain nodes
             this.drumsGain = this.audioContext.createGain();
             this.drumsGain.connect(this.masterGain);
-            this.drumsGain.gain.value = 0.75;
+            this.drumsGain.gain.value = 0.8;
             
             this.synthsGain = this.audioContext.createGain();
             this.synthsGain.connect(this.masterGain);
-            this.synthsGain.gain.value = 0.65;
+            this.synthsGain.gain.value = 0.8;
+
+            // Per-instrument gain nodes for individual volume control
+            const drumNames = ['kick', 'snare', 'hihat', 'openhat', 'crash', 'clap'];
+            drumNames.forEach(name => {
+                const g = this.audioContext.createGain();
+                g.gain.value = 0.8; // default per-instrument level
+                g.connect(this.drumsGain);
+                this.instrumentGains.drums[name] = g;
+            });
+
+            const synthNames = ['bass', 'lead', 'pad', 'arp'];
+            synthNames.forEach(name => {
+                const g = this.audioContext.createGain();
+                g.gain.value = 0.8; // default per-instrument level
+                g.connect(this.synthsGain);
+                this.instrumentGains.synths[name] = g;
+            });
             
             // Initialize effects
             this.initializeEffects();
@@ -101,12 +130,13 @@ class AudioEngine {
         oscillator.frequency.setValueAtTime(60, this.audioContext.currentTime);
         oscillator.frequency.exponentialRampToValueAtTime(0.1, this.audioContext.currentTime + 0.5);
         
-        // Normalized gain for kick drum
-        gain.gain.setValueAtTime(0.8, this.audioContext.currentTime);
+        // Slightly reduce initial gain to balance with other drums
+        gain.gain.setValueAtTime(0.7, this.audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
         
         oscillator.connect(gain);
-        gain.connect(this.drumsGain);
+        // Route through per-instrument gain
+        gain.connect(this.instrumentGains.drums['kick'] || this.drumsGain);
         
         oscillator.start();
         oscillator.stop(this.audioContext.currentTime + 0.5);
@@ -115,24 +145,8 @@ class AudioEngine {
     generateSnareDrum() {
         this.ensureAudioContext();
         
-        const now = this.audioContext.currentTime;
-        
-        // Create a more complex snare sound with both tonal and noise components
-        
-        // 1. Tonal component (pitched drum sound)
-        const oscillator = this.audioContext.createOscillator();
-        const oscGain = this.audioContext.createGain();
-        oscillator.type = 'triangle';
-        oscillator.frequency.setValueAtTime(200, now);
-        oscillator.frequency.exponentialRampToValueAtTime(60, now + 0.05);
-        
-        oscGain.gain.setValueAtTime(0.4, now);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-        
-        oscillator.connect(oscGain);
-        
-        // 2. Enhanced noise component with multiple frequency bands
-        const bufferSize = this.sampleRate * 0.25;
+        // Noise component
+        const bufferSize = this.sampleRate * 0.3;
         const buffer = this.audioContext.createBuffer(1, bufferSize, this.sampleRate);
         const data = buffer.getChannelData(0);
         
@@ -143,217 +157,81 @@ class AudioEngine {
         const noise = this.audioContext.createBufferSource();
         noise.buffer = buffer;
         
-        // High frequency noise (snare sizzle)
-        const highFilter = this.audioContext.createBiquadFilter();
-        highFilter.type = 'highpass';
-        highFilter.frequency.value = 8000;
-        highFilter.Q.value = 0.7;
+        const noiseFilter = this.audioContext.createBiquadFilter();
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 1000;
         
-        const highGain = this.audioContext.createGain();
-        highGain.gain.setValueAtTime(0.3, now);
-        highGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
         
-        // Mid frequency noise (snare body)
-        const midFilter = this.audioContext.createBiquadFilter();
-        midFilter.type = 'bandpass';
-        midFilter.frequency.value = 2000;
-        midFilter.Q.value = 2;
+        noise.connect(noiseFilter);
+        noiseFilter.connect(gain);
+        gain.connect(this.instrumentGains.drums['snare'] || this.drumsGain);
         
-        const midGain = this.audioContext.createGain();
-        midGain.gain.setValueAtTime(0.6, now);
-        midGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-        
-        // Create two noise paths
-        const noiseSplitter = this.audioContext.createGain();
-        noiseSplitter.gain.value = 1;
-        
-        noise.connect(noiseSplitter);
-        noiseSplitter.connect(highFilter);
-        noiseSplitter.connect(midFilter);
-        
-        highFilter.connect(highGain);
-        midFilter.connect(midGain);
-        
-        // Main output gain with improved envelope
-        const masterGain = this.audioContext.createGain();
-        masterGain.gain.setValueAtTime(0.6, now); // Normalized volume
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-        
-        // Mix all components
-        oscGain.connect(masterGain);
-        highGain.connect(masterGain);
-        midGain.connect(masterGain);
-        masterGain.connect(this.drumsGain);
-        
-        // Start all sources
-        oscillator.start();
-        oscillator.stop(now + 0.15);
         noise.start();
-        noise.stop(now + 0.25);
+        noise.stop(this.audioContext.currentTime + 0.3);
     }
     
-    generateHiHat(open = false) {
+    generateHiHat(open = false, key = 'hihat') {
         this.ensureAudioContext();
         
-        const now = this.audioContext.currentTime;
-        const duration = open ? 0.4 : 0.08;
-        
-        // Create more realistic hihat with multiple frequency bands
-        const bufferSize = this.sampleRate * duration;
+        const bufferSize = this.sampleRate * (open ? 0.3 : 0.1);
         const buffer = this.audioContext.createBuffer(1, bufferSize, this.sampleRate);
         const data = buffer.getChannelData(0);
         
-        // Generate shaped noise with better characteristics
         for (let i = 0; i < bufferSize; i++) {
-            // Add some metallic shimmer with frequency modulation
-            const time = i / this.sampleRate;
-            const envelope = Math.exp(-time * (open ? 3 : 12));
-            const modulation = 1 + 0.3 * Math.sin(time * 12000 * Math.PI);
-            data[i] = (Math.random() * 2 - 1) * envelope * modulation;
+            data[i] = Math.random() * 2 - 1;
         }
         
         const noise = this.audioContext.createBufferSource();
         noise.buffer = buffer;
         
-        // High frequency metallic content
-        const highFilter = this.audioContext.createBiquadFilter();
-        highFilter.type = 'highpass';
-        highFilter.frequency.value = open ? 8000 : 10000;
-        highFilter.Q.value = 0.5;
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 8000;
         
-        // Band-pass for mid frequencies (adds body)
-        const midFilter = this.audioContext.createBiquadFilter();
-        midFilter.type = 'bandpass';
-        midFilter.frequency.value = 6000;
-        midFilter.Q.value = 2;
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + (open ? 0.3 : 0.1));
         
-        // Additional high-shelf for sparkle
-        const shelfFilter = this.audioContext.createBiquadFilter();
-        shelfFilter.type = 'highshelf';
-        shelfFilter.frequency.value = 12000;
-        shelfFilter.gain.value = 3;
-        
-        // Create splitter for parallel processing
-        const splitter = this.audioContext.createGain();
-        const highGain = this.audioContext.createGain();
-        const midGain = this.audioContext.createGain();
-        
-        highGain.gain.value = 0.7;
-        midGain.gain.value = 0.3;
-        
-        // Main gain with improved envelope
-        const masterGain = this.audioContext.createGain();
-        const initialGain = open ? 0.6 : 0.4;
-        masterGain.gain.setValueAtTime(initialGain, now);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        // Connect the processing chain
-        noise.connect(splitter);
-        splitter.connect(highFilter);
-        splitter.connect(midFilter);
-        
-        highFilter.connect(shelfFilter);
-        shelfFilter.connect(highGain);
-        midFilter.connect(midGain);
-        
-        highGain.connect(masterGain);
-        midGain.connect(masterGain);
-        masterGain.connect(this.drumsGain);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.instrumentGains.drums[key] || this.drumsGain);
         
         noise.start();
-        noise.stop(now + duration);
+        noise.stop(this.audioContext.currentTime + (open ? 0.3 : 0.1));
     }
     
     generateCrash() {
         this.ensureAudioContext();
         
-        const now = this.audioContext.currentTime;
-        const duration = 1.5;
-        
-        // Create a more realistic crash with multiple frequency components
-        const bufferSize = this.sampleRate * duration;
+        const bufferSize = this.sampleRate * 1.0;
         const buffer = this.audioContext.createBuffer(1, bufferSize, this.sampleRate);
         const data = buffer.getChannelData(0);
         
-        // Generate complex noise with metallic characteristics
         for (let i = 0; i < bufferSize; i++) {
-            const time = i / this.sampleRate;
-            
-            // Complex envelope that decays but has some sustain
-            const envelope = Math.exp(-time * 1.5) + 0.2 * Math.exp(-time * 0.5);
-            
-            // Add metallic shimmer and harmonic complexity
-            const shimmer = 1 + 0.4 * Math.sin(time * 8000 * Math.PI) + 
-                           0.2 * Math.sin(time * 15000 * Math.PI);
-            
-            data[i] = (Math.random() * 2 - 1) * envelope * shimmer;
+            data[i] = Math.random() * 2 - 1;
         }
         
         const noise = this.audioContext.createBufferSource();
         noise.buffer = buffer;
         
-        // Create multiple parallel frequency bands
-        const splitter = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 5000;
+        filter.Q.value = 0.5;
         
-        // High frequency band (bright sparkle)
-        const highFilter = this.audioContext.createBiquadFilter();
-        highFilter.type = 'highpass';
-        highFilter.frequency.value = 8000;
-        highFilter.Q.value = 0.7;
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1.0);
         
-        const highShelf = this.audioContext.createBiquadFilter();
-        highShelf.type = 'highshelf';
-        highShelf.frequency.value = 12000;
-        highShelf.gain.value = 4;
-        
-        const highGain = this.audioContext.createGain();
-        highGain.gain.value = 0.4;
-        
-        // Mid frequency band (body)
-        const midFilter = this.audioContext.createBiquadFilter();
-        midFilter.type = 'bandpass';
-        midFilter.frequency.value = 4000;
-        midFilter.Q.value = 1.5;
-        
-        const midGain = this.audioContext.createGain();
-        midGain.gain.value = 0.5;
-        
-        // Low-mid frequency band (warmth)
-        const lowMidFilter = this.audioContext.createBiquadFilter();
-        lowMidFilter.type = 'bandpass';
-        lowMidFilter.frequency.value = 1500;
-        lowMidFilter.Q.value = 2;
-        
-        const lowMidGain = this.audioContext.createGain();
-        lowMidGain.gain.value = 0.3;
-        
-        // Main gain with sophisticated envelope
-        const masterGain = this.audioContext.createGain();
-        masterGain.gain.setValueAtTime(0.9, now);
-        masterGain.gain.exponentialRampToValueAtTime(0.3, now + 0.1);
-        masterGain.gain.setValueAtTime(0.3, now + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        // Connect the processing chain
-        noise.connect(splitter);
-        
-        splitter.connect(highFilter);
-        splitter.connect(midFilter);
-        splitter.connect(lowMidFilter);
-        
-        highFilter.connect(highShelf);
-        highShelf.connect(highGain);
-        midFilter.connect(midGain);
-        lowMidFilter.connect(lowMidGain);
-        
-        highGain.connect(masterGain);
-        midGain.connect(masterGain);
-        lowMidGain.connect(masterGain);
-        
-        masterGain.connect(this.drumsGain);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.instrumentGains.drums['crash'] || this.drumsGain);
         
         noise.start();
-        noise.stop(now + duration);
+        noise.stop(this.audioContext.currentTime + 1.0);
     }
     
     generateClap() {
@@ -379,12 +257,12 @@ class AudioEngine {
                 filter.Q.value = 2;
                 
                 const gain = this.audioContext.createGain();
-                gain.gain.setValueAtTime(0.6, this.audioContext.currentTime);
+                gain.gain.setValueAtTime(0.45, this.audioContext.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
                 
                 noise.connect(filter);
                 filter.connect(gain);
-                gain.connect(this.drumsGain);
+                gain.connect(this.instrumentGains.drums['clap'] || this.drumsGain);
                 
                 noise.start();
                 noise.stop(this.audioContext.currentTime + 0.05);
@@ -393,57 +271,32 @@ class AudioEngine {
     }
     
     // Synth sound generators
-    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5) {
+    generateSynth(frequency, waveform = 'sawtooth', duration = 0.5, attack = 0.01, decay = 0.3, sustain = 0.7, release = 0.5, level = 0.5, key = 'lead') {
         this.ensureAudioContext();
         
-        const now = this.audioContext.currentTime;
+        const oscillator = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
         
-        // Enhanced synth with multiple oscillators for richness
-        const oscillator1 = this.audioContext.createOscillator();
-        const oscillator2 = this.audioContext.createOscillator();
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        
-        // Main oscillator
-        oscillator1.frequency.value = frequency;
-        oscillator1.type = waveform;
-        
-        // Sub oscillator for richness (octave down)
-        oscillator2.frequency.value = frequency * 0.5;
-        oscillator2.type = 'sine';
-        
-        // Balance between main and sub oscillators
-        gain1.gain.value = 0.8;
-        gain2.gain.value = 0.3;
-        
-        // Add filter for character
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = frequency * 4;
-        filter.Q.value = 1;
-        
-        // Main envelope gain
-        const envelope = this.audioContext.createGain();
+        oscillator.frequency.value = frequency;
+        oscillator.type = waveform;
         
         // ADSR envelope
-        envelope.gain.setValueAtTime(0, now);
-        envelope.gain.linearRampToValueAtTime(1, now + attack);
-        envelope.gain.linearRampToValueAtTime(sustain, now + attack + decay);
-        envelope.gain.setValueAtTime(sustain, now + duration - release);
-        envelope.gain.linearRampToValueAtTime(0, now + duration);
+        const now = this.audioContext.currentTime;
+        const peak = Math.max(0, Math.min(1, level));
+        const sus = Math.max(0, Math.min(1, sustain)) * peak;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + attack);
+        gain.gain.linearRampToValueAtTime(sus, now + attack + decay);
+        gain.gain.setValueAtTime(sus, now + duration - release);
+        gain.gain.linearRampToValueAtTime(0, now + duration);
         
-        // Connect the chain
-        oscillator1.connect(gain1);
-        oscillator2.connect(gain2);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        filter.connect(envelope);
-        envelope.connect(this.synthsGain);
+        oscillator.connect(gain);
+        // Route through per-instrument gain
+        const target = this.instrumentGains.synths[key] || this.synthsGain;
+        gain.connect(target);
         
-        oscillator1.start();
-        oscillator1.stop(now + duration);
-        oscillator2.start();
-        oscillator2.stop(now + duration);
+        oscillator.start();
+        oscillator.stop(now + duration);
     }
     
     // Volume controls
@@ -496,10 +349,10 @@ class AudioEngine {
                 this.generateSnareDrum();
                 break;
             case 'hihat':
-                this.generateHiHat(false);
+                this.generateHiHat(false, 'hihat');
                 break;
             case 'openhat':
-                this.generateHiHat(true);
+                this.generateHiHat(true, 'openhat');
                 break;
             case 'crash':
                 this.generateCrash();
@@ -514,196 +367,26 @@ class AudioEngine {
     playSynthSound(soundName, frequency = 440) {
         switch (soundName) {
             case 'bass':
-                this.generateEnhancedBass(frequency * 0.5);
+                this.generateSynth(frequency * 0.5, 'sawtooth', 0.5, 0.01, 0.3, 0.6, 0.4, 0.45, 'bass');
                 break;
             case 'lead':
-                this.generateEnhancedLead(frequency);
+                this.generateSynth(frequency, 'square', 0.3, 0.02, 0.15, 0.5, 0.2, 0.35, 'lead');
                 break;
             case 'pad':
-                this.generateEnhancedPad(frequency);
+                this.generateSynth(frequency, 'sine', 1.2, 0.4, 0.4, 0.8, 0.8, 0.4, 'pad');
                 break;
             case 'arp':
-                this.generateSynth(frequency, 'triangle', 0.2, 0.01, 0.1, 0.3, 0.2);
+                this.generateSynth(frequency, 'triangle', 0.18, 0.01, 0.08, 0.3, 0.15, 0.3, 'arp');
                 break;
         }
     }
-    
-    generateEnhancedBass(frequency) {
-        this.ensureAudioContext();
-        
-        const now = this.audioContext.currentTime;
-        const duration = 0.6;
-        
-        // Multiple oscillators for thick bass sound
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const osc3 = this.audioContext.createOscillator();
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        const gain3 = this.audioContext.createGain();
-        
-        // Main bass oscillator
-        osc1.type = 'sawtooth';
-        osc1.frequency.value = frequency;
-        gain1.gain.value = 0.6;
-        
-        // Sub-bass oscillator (octave down)
-        osc2.type = 'sine';
-        osc2.frequency.value = frequency * 0.5;
-        gain2.gain.value = 0.4;
-        
-        // Higher harmonic for presence
-        osc3.type = 'square';
-        osc3.frequency.value = frequency * 2;
-        gain3.gain.value = 0.1;
-        
-        // Filter for character and punch
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(frequency * 6, now);
-        filter.frequency.exponentialRampToValueAtTime(frequency * 2, now + 0.1);
-        filter.Q.value = 2;
-        
-        // Envelope
-        const envelope = this.audioContext.createGain();
-        envelope.gain.setValueAtTime(0, now);
-        envelope.gain.linearRampToValueAtTime(1, now + 0.01);
-        envelope.gain.linearRampToValueAtTime(0.7, now + 0.1);
-        envelope.gain.setValueAtTime(0.7, now + duration - 0.3);
-        envelope.gain.linearRampToValueAtTime(0, now + duration);
-        
-        // Connect chain
-        osc1.connect(gain1);
-        osc2.connect(gain2);
-        osc3.connect(gain3);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        gain3.connect(filter);
-        filter.connect(envelope);
-        envelope.connect(this.synthsGain);
-        
-        // Start and stop
-        [osc1, osc2, osc3].forEach(osc => {
-            osc.start();
-            osc.stop(now + duration);
-        });
-    }
-    
-    generateEnhancedLead(frequency) {
-        this.ensureAudioContext();
-        
-        const now = this.audioContext.currentTime;
-        const duration = 0.4;
-        
-        // Bright lead sound with modulation
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const lfo = this.audioContext.createOscillator();
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        const lfoGain = this.audioContext.createGain();
-        
-        // Main lead oscillator
-        osc1.type = 'square';
-        osc1.frequency.value = frequency;
-        gain1.gain.value = 0.7;
-        
-        // Detuned oscillator for richness
-        osc2.type = 'sawtooth';
-        osc2.frequency.value = frequency * 1.007; // Slight detune
-        gain2.gain.value = 0.3;
-        
-        // LFO for vibrato
-        lfo.type = 'sine';
-        lfo.frequency.value = 5;
-        lfoGain.gain.value = 3;
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc1.frequency);
-        
-        // Bright filter
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(frequency * 8, now);
-        filter.frequency.exponentialRampToValueAtTime(frequency * 4, now + 0.2);
-        filter.Q.value = 3;
-        
-        // Snappy envelope
-        const envelope = this.audioContext.createGain();
-        envelope.gain.setValueAtTime(0, now);
-        envelope.gain.linearRampToValueAtTime(1, now + 0.02);
-        envelope.gain.linearRampToValueAtTime(0.5, now + 0.1);
-        envelope.gain.setValueAtTime(0.5, now + duration - 0.2);
-        envelope.gain.linearRampToValueAtTime(0, now + duration);
-        
-        // Connect chain
-        osc1.connect(gain1);
-        osc2.connect(gain2);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        filter.connect(envelope);
-        envelope.connect(this.synthsGain);
-        
-        // Start and stop
-        [osc1, osc2, lfo].forEach(osc => {
-            osc.start();
-            osc.stop(now + duration);
-        });
-    }
-    
-    generateEnhancedPad(frequency) {
-        this.ensureAudioContext();
-        
-        const now = this.audioContext.currentTime;
-        const duration = 1.2;
-        
-        // Rich pad sound with multiple detuned oscillators
-        const oscillators = [];
-        const gains = [];
-        
-        // Create 4 slightly detuned oscillators for richness
-        const detunes = [0, 0.003, -0.005, 0.007];
-        const waveforms = ['sine', 'triangle', 'sine', 'triangle'];
-        
-        for (let i = 0; i < 4; i++) {
-            const osc = this.audioContext.createOscillator();
-            const gain = this.audioContext.createGain();
-            
-            osc.type = waveforms[i];
-            osc.frequency.value = frequency * (1 + detunes[i]);
-            gain.gain.value = 0.25;
-            
-            oscillators.push(osc);
-            gains.push(gain);
+
+    // Per-instrument volume control
+    setInstrumentVolume(section, name, value) {
+        const group = this.instrumentGains[section];
+        if (group && group[name]) {
+            group[name].gain.value = value;
         }
-        
-        // Warm filter
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = frequency * 3;
-        filter.Q.value = 0.5;
-        
-        // Slow attack envelope for pad character
-        const envelope = this.audioContext.createGain();
-        envelope.gain.setValueAtTime(0, now);
-        envelope.gain.linearRampToValueAtTime(0.8, now + 0.3);
-        envelope.gain.setValueAtTime(0.8, now + duration - 0.5);
-        envelope.gain.linearRampToValueAtTime(0, now + duration);
-        
-        // Connect all oscillators
-        for (let i = 0; i < 4; i++) {
-            oscillators[i].connect(gains[i]);
-            gains[i].connect(filter);
-        }
-        filter.connect(envelope);
-        envelope.connect(this.synthsGain);
-        
-        // Start and stop all oscillators
-        oscillators.forEach(osc => {
-            osc.start();
-            osc.stop(now + duration);
-        });
     }
 }
 

@@ -1,5 +1,7 @@
 # Music Machine
 
+Live Demo: https://ai-frontiers-demo-bvd8fqaxece7e0ey.canadacentral-01.azurewebsites.net
+
 A Flask-based music sequencer inspired by Teenage Engineering's design aesthetic. Create beats and melodies on the go with a clean, grid-based interface.
 
 ## Features
@@ -41,6 +43,54 @@ python app.py
 ```
 
 4. Open your browser and navigate to `http://localhost:5000`
+
+## Deploying to Azure App Service
+
+### Prerequisites
+- Azure subscription
+- Azure CLI (optional if deploying from GitHub Actions)
+- Create an Azure App Service (Linux) with a Python runtime (e.g., 3.11)
+
+### What’s already configured
+- `requirements.txt` includes `gunicorn` for production serving.
+- `app.py` exposes a module-level `app` for WSGI (`app:app`).
+- `Procfile` defines the web command for Gunicorn.
+
+### Quick deploy (via Azure Portal or CLI)
+- Deployment source: set to your GitHub repo (recommended) or local push.
+- Startup command: leave blank (Oryx will detect Flask + run `gunicorn app:app`).
+  - Alternatively set: `gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT app:app`
+- App settings (Configuration → Application settings):
+  - `SECRET_KEY`: set to a secure random string
+  - `FLASK_DEBUG`: `0` (optional, defaults to off)
+
+### GitHub Actions (Optional)
+1. Create an Azure publish profile on the Web App → Get publish profile.
+2. Add it to your repo secrets as `AZUREAPPSERVICE_PUBLISHPROFILE`.
+3. Use the Azure Web Apps Deploy action. Example workflow:
+
+```yaml
+name: Deploy to Azure Web App
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: <YOUR_WEBAPP_NAME>
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+          package: .
+```
+
+After deployment, browse to the App Service URL. The app binds to `0.0.0.0` and reads the `PORT` provided by the platform.
 
 ## Usage
 

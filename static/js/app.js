@@ -308,16 +308,7 @@ class ApiClient {
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Add click event to initialize audio context (required by browsers)
-    const initAudio = () => {
-        window.musicMachine = new MusicMachineApp();
-        document.removeEventListener('click', initAudio);
-        document.removeEventListener('keydown', initAudio);
-    };
-    
-    document.addEventListener('click', initAudio);
-    document.addEventListener('keydown', initAudio);
-    
-    // Show a message to user about interaction requirement
-    console.log('Click anywhere or press any key to start Music Machine');
+    // Initialize immediately so the UI renders without requiring a click
+    window.musicMachine = new MusicMachineApp();
+    // Note: Audio output may require a user gesture; handled in Sequencer.play()
 });

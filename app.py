@@ -40,8 +40,10 @@ def create_app():
     
     return app
 
+# Create the WSGI application at import time for Gunicorn (app:app)
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     # Allow overriding via PORT env var; default to 5050
     port = int(os.environ.get('PORT', 5050))
     # Configure debug from environment; default False to avoid reloader issues in sandbox

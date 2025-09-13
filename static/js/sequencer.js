@@ -11,6 +11,15 @@ class Sequencer {
         this.steps = 16;
         this.stepInterval = null;
         this.currentSequenceId = null;
+        // Internal note state for synth steps (MIDI numbers). Not persisted yet.
+        this.synthNotes = {
+            bass: new Array(16).fill(69),  // A4
+            lead: new Array(16).fill(69),
+            pad: new Array(16).fill(69),
+            arp: new Array(16).fill(69)
+        };
+        // Drag state for adjusting synth notes
+        this._dragState = null;
         
         // Sequence data structure
         this.sequence = {
@@ -34,18 +43,41 @@ class Sequencer {
                 }
             },
             volume: {
-                master: 0.7,
-                drums: 0.75,
-                synths: 0.65
+                master: 0.8,
+                drums: 0.8,
+                synths: 0.8,
+                perInstrument: {
+                    drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
+                    synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+                }
             },
             effects: {
                 reverb: 0.2,
                 delay: 0.1,
                 filter: 0.0
+            },
+            removed: {
+                drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
+                synths: { bass: false, lead: false, pad: false, arp: false }
             }
         };
         
         this.initializeSequencer();
+    }
+
+    // ---- Note helpers ----
+    midiToFreq(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    midiToName(midi) {
+        const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        return names[((midi % 12) + 12) % 12];
+    }
+
+    noteColorForMidi(midi) {
+        const hue = (((midi % 12) + 12) % 12) * 30; // 0..330 by semitone
+        return `hsl(${hue}, 90%, 50%)`;
     }
     
     initializeSequencer() {
@@ -53,6 +85,35 @@ class Sequencer {
         this.renderTracks();
         this.bindEvents();
         this.updateStepInterval();
+        // Apply initial mixer/effects values from UI so audio matches the visible state
+        const master = parseFloat(document.getElementById('master-volume').value || '0.8');
+        const drums = parseFloat(document.getElementById('drums-volume').value || '0.8');
+        const synths = parseFloat(document.getElementById('synths-volume').value || '0.8');
+        const reverb = parseFloat(document.getElementById('reverb-level').value || '0.2');
+        const delay = parseFloat(document.getElementById('delay-level').value || '0.1');
+        const filter = parseFloat(document.getElementById('filter-level').value || '0.0');
+
+        this.audioEngine.setMasterVolume(master);
+        this.audioEngine.setDrumsVolume(drums);
+        this.audioEngine.setSynthsVolume(synths);
+        this.audioEngine.setReverbLevel(reverb);
+        this.audioEngine.setDelayLevel(delay);
+        this.audioEngine.setFilterLevel(filter);
+
+        this.updateVolumeDisplay('master', master);
+        this.updateVolumeDisplay('drums', drums);
+        this.updateVolumeDisplay('synths', synths);
+        this.updateEffectDisplay('reverb', reverb);
+        this.updateEffectDisplay('delay', delay);
+        this.updateEffectDisplay('filter', filter);
+
+        // Apply per-instrument volumes
+        Object.entries(this.sequence.volume.perInstrument.drums).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('drums', name, v);
+        });
+        Object.entries(this.sequence.volume.perInstrument.synths).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('synths', name, v);
+        });
     }
     
     renderStepIndicators() {
@@ -78,10 +139,13 @@ class Sequencer {
         container.innerHTML = '';
         
         const drumSounds = Object.keys(this.sequence.tracks.drums);
+        // Active first, then removed
+        drumSounds.sort((a,b) => (this.sequence.removed.drums[a] === this.sequence.removed.drums[b]) ? 0 : (this.sequence.removed.drums[a] ? 1 : -1));
         
         drumSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
             trackRow.className = 'track-row';
+            if (this.sequence.removed.drums[soundName]) trackRow.classList.add('removed');
             
             // Track label
             const label = document.createElement('div');
@@ -89,10 +153,35 @@ class Sequencer {
             label.textContent = soundName.toUpperCase();
             label.dataset.instrument = 'drums';
             label.dataset.sound = soundName;
+            label.title = 'Click to remove/restore this instrument';
             label.addEventListener('click', () => {
-                this.audioEngine.playDrumSound(soundName);
+                this.toggleInstrumentRemoved('drums', soundName);
+                // Move row to end if removed; or re-render to reorder
+                this.renderDrumTracks();
             });
             trackRow.appendChild(label);
+
+            // Per-instrument volume knob
+            const controls = document.createElement('div');
+            controls.className = 'track-controls';
+            const knob = document.createElement('input');
+            knob.type = 'range';
+            knob.min = '0';
+            knob.max = '1';
+            knob.step = '0.01';
+            knob.value = this.sequence.volume.perInstrument.drums[soundName];
+            knob.className = 'knob';
+            knob.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                this.setInstrumentVolume('drums', soundName, v);
+            });
+            const knobVal = document.createElement('span');
+            knobVal.className = 'knob-value';
+            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.drums[soundName] * 100);
+            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
+            controls.appendChild(knob);
+            controls.appendChild(knobVal);
+            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -126,10 +215,19 @@ class Sequencer {
         container.innerHTML = '';
         
         const synthSounds = Object.keys(this.sequence.tracks.synths);
+        synthSounds.sort((a,b) => (this.sequence.removed.synths[a] === this.sequence.removed.synths[b]) ? 0 : (this.sequence.removed.synths[a] ? 1 : -1));
         
+        // Ensure note arrays exist and match steps
+        synthSounds.forEach(name => {
+            if (!this.synthNotes[name] || this.synthNotes[name].length !== this.steps) {
+                this.synthNotes[name] = new Array(this.steps).fill(69);
+            }
+        });
+
         synthSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
             trackRow.className = 'track-row';
+            if (this.sequence.removed.synths[soundName]) trackRow.classList.add('removed');
             
             // Track label
             const label = document.createElement('div');
@@ -137,10 +235,34 @@ class Sequencer {
             label.textContent = soundName.toUpperCase();
             label.dataset.instrument = 'synths';
             label.dataset.sound = soundName;
+            label.title = 'Click to remove/restore this instrument';
             label.addEventListener('click', () => {
-                this.audioEngine.playSynthSound(soundName, 440);
+                this.toggleInstrumentRemoved('synths', soundName);
+                this.renderSynthTracks();
             });
             trackRow.appendChild(label);
+
+            // Per-instrument volume knob
+            const controls = document.createElement('div');
+            controls.className = 'track-controls';
+            const knob = document.createElement('input');
+            knob.type = 'range';
+            knob.min = '0';
+            knob.max = '1';
+            knob.step = '0.01';
+            knob.value = this.sequence.volume.perInstrument.synths[soundName];
+            knob.className = 'knob';
+            knob.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                this.setInstrumentVolume('synths', soundName, v);
+            });
+            const knobVal = document.createElement('span');
+            knobVal.className = 'knob-value';
+            knobVal.textContent = Math.round(this.sequence.volume.perInstrument.synths[soundName] * 100);
+            knob.addEventListener('input', () => knobVal.textContent = Math.round(knob.value * 100));
+            controls.appendChild(knob);
+            controls.appendChild(knobVal);
+            trackRow.appendChild(controls);
             
             // Step buttons
             const stepsContainer = document.createElement('div');
@@ -155,10 +277,63 @@ class Sequencer {
                 
                 if (this.sequence.tracks.synths[soundName][i]) {
                     stepBtn.classList.add('active');
+                    // Show current note label and color when active
+                    const midi = this.synthNotes[soundName][i] ?? 69;
+                    stepBtn.textContent = this.midiToName(midi);
+                    stepBtn.style.borderColor = this.noteColorForMidi(midi);
                 }
                 
+                // Click toggles active state
                 stepBtn.addEventListener('click', () => {
                     this.toggleStep('synths', soundName, i);
+                });
+
+                // Drag up/down to change note
+                stepBtn.addEventListener('mousedown', (e) => {
+                    const startMidi = this.synthNotes[soundName][i] ?? 69;
+                    this._dragState = {
+                        sound: soundName,
+                        step: i,
+                        startY: e.clientY,
+                        startMidi,
+                        moved: false,
+                        activatedOnDrag: false,
+                        btn: stepBtn
+                    };
+                    const onMove = (ev) => {
+                        if (!this._dragState) return;
+                        const dy = this._dragState.startY - ev.clientY;
+                        const semis = Math.round(dy / 8); // 8px per semitone
+                        let midi = this._dragState.startMidi + semis;
+                        midi = Math.max(48, Math.min(84, midi)); // clamp 4 octaves
+                        // If we start dragging and the step isn't active, activate it now
+                        if (!this._dragState.activatedOnDrag && !this.sequence.tracks.synths[this._dragState.sound][this._dragState.step]) {
+                            this.sequence.tracks.synths[this._dragState.sound][this._dragState.step] = true;
+                            this._dragState.btn.classList.add('active');
+                            this._dragState.activatedOnDrag = true;
+                        }
+                        if (midi !== this.synthNotes[this._dragState.sound][this._dragState.step]) {
+                            this._dragState.moved = true;
+                            this.synthNotes[this._dragState.sound][this._dragState.step] = midi;
+                            // Update UI label/color
+                            this._dragState.btn.textContent = this.midiToName(midi);
+                            this._dragState.btn.style.borderColor = this.noteColorForMidi(midi);
+                            // Optional: preview note while dragging
+                            this.audioEngine.playSynthSound(this._dragState.sound, this.midiToFreq(midi));
+                        }
+                    };
+                    const onUp = (ev) => {
+                        if (this._dragState && this._dragState.moved) {
+                            // Prevent click toggle if we dragged
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                        }
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                        this._dragState = null;
+                    };
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
                 });
                 
                 stepsContainer.appendChild(stepBtn);
@@ -228,6 +403,18 @@ class Sequencer {
             this.updateEffectDisplay('filter', value);
         });
     }
+
+    toggleInstrumentRemoved(section, sound) {
+        const current = this.sequence.removed[section][sound];
+        this.sequence.removed[section][sound] = !current;
+    }
+
+    setInstrumentVolume(section, sound, value) {
+        // Update sequence state
+        this.sequence.volume.perInstrument[section][sound] = value;
+        // Apply to audio engine
+        this.audioEngine.setInstrumentVolume(section, sound, value);
+    }
     
     toggleStep(instrument, sound, step) {
         const currentState = this.sequence.tracks[instrument][sound][step];
@@ -240,6 +427,16 @@ class Sequencer {
         
         if (stepBtn) {
             stepBtn.classList.toggle('active', !currentState);
+            if (!currentState && instrument === 'synths') {
+                // Ensure note label/color visible when activating
+                const midi = this.synthNotes[sound]?.[step] ?? 69;
+                stepBtn.textContent = this.midiToName(midi);
+                stepBtn.style.borderColor = this.noteColorForMidi(midi);
+            } else if (currentState && instrument === 'synths') {
+                // Clearing label/color when deactivating
+                stepBtn.textContent = '';
+                stepBtn.style.borderColor = '';
+            }
         }
         
         // Play sound for immediate feedback
@@ -247,7 +444,8 @@ class Sequencer {
             if (instrument === 'drums') {
                 this.audioEngine.playDrumSound(sound);
             } else {
-                this.audioEngine.playSynthSound(sound, 440);
+                const midi = this.synthNotes[sound]?.[step] ?? 69;
+                this.audioEngine.playSynthSound(sound, this.midiToFreq(midi));
             }
         }
     }
@@ -256,6 +454,8 @@ class Sequencer {
         this.isPlaying = true;
         document.getElementById('play-btn').classList.add('active');
         document.getElementById('play-btn').textContent = '⏸';
+        // Ensure audio context resumes inside this user gesture
+        this.audioEngine.ensureAudioContext();
         
         this.stepInterval = setInterval(() => {
             this.playStep();
@@ -285,18 +485,19 @@ class Sequencer {
         // Clear previous playing indicators
         this.clearPlayingSteps();
         
-        // Play drum sounds
+        // Play drum sounds (skip removed)
         Object.keys(this.sequence.tracks.drums).forEach(soundName => {
-            if (this.sequence.tracks.drums[soundName][step]) {
+            if (!this.sequence.removed.drums[soundName] && this.sequence.tracks.drums[soundName][step]) {
                 this.audioEngine.playDrumSound(soundName);
                 this.highlightPlayingStep('drums', soundName, step);
             }
         });
         
-        // Play synth sounds
+        // Play synth sounds (skip removed)
         Object.keys(this.sequence.tracks.synths).forEach(soundName => {
-            if (this.sequence.tracks.synths[soundName][step]) {
-                this.audioEngine.playSynthSound(soundName, 440);
+            if (!this.sequence.removed.synths[soundName] && this.sequence.tracks.synths[soundName][step]) {
+                const midi = this.synthNotes[soundName]?.[step] ?? 69;
+                this.audioEngine.playSynthSound(soundName, this.midiToFreq(midi));
                 this.highlightPlayingStep('synths', soundName, step);
             }
         });
@@ -383,6 +584,16 @@ class Sequencer {
         if (!sequenceData) return;
         
         this.sequence = { ...this.sequence, ...sequenceData };
+        // Ensure new fields exist
+        this.sequence.volume = this.sequence.volume || {};
+        this.sequence.volume.perInstrument = this.sequence.volume.perInstrument || {
+            drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
+            synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+        };
+        this.sequence.removed = this.sequence.removed || {
+            drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
+            synths: { bass: false, lead: false, pad: false, arp: false }
+        };
         this.currentSequenceId = sequenceData.id;
         this.setBpm(this.sequence.bpm);
         
@@ -411,6 +622,12 @@ class Sequencer {
         this.audioEngine.setReverbLevel(this.sequence.effects.reverb);
         this.audioEngine.setDelayLevel(this.sequence.effects.delay);
         this.audioEngine.setFilterLevel(this.sequence.effects.filter);
+        Object.entries(this.sequence.volume.perInstrument.drums).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('drums', name, v);
+        });
+        Object.entries(this.sequence.volume.perInstrument.synths).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('synths', name, v);
+        });
         
         // Re-render tracks with new data
         this.renderTracks();
