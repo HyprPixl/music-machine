@@ -82,6 +82,14 @@ class Sequencer {
         this.updateEffectDisplay('reverb', reverb);
         this.updateEffectDisplay('delay', delay);
         this.updateEffectDisplay('filter', filter);
+
+        // Apply per-instrument volumes
+        Object.entries(this.sequence.volume.perInstrument.drums).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('drums', name, v);
+        });
+        Object.entries(this.sequence.volume.perInstrument.synths).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('synths', name, v);
+        });
     }
     
     renderStepIndicators() {
@@ -480,6 +488,16 @@ class Sequencer {
         if (!sequenceData) return;
         
         this.sequence = { ...this.sequence, ...sequenceData };
+        // Ensure new fields exist
+        this.sequence.volume = this.sequence.volume || {};
+        this.sequence.volume.perInstrument = this.sequence.volume.perInstrument || {
+            drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
+            synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+        };
+        this.sequence.removed = this.sequence.removed || {
+            drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
+            synths: { bass: false, lead: false, pad: false, arp: false }
+        };
         this.currentSequenceId = sequenceData.id;
         this.setBpm(this.sequence.bpm);
         
@@ -508,6 +526,12 @@ class Sequencer {
         this.audioEngine.setReverbLevel(this.sequence.effects.reverb);
         this.audioEngine.setDelayLevel(this.sequence.effects.delay);
         this.audioEngine.setFilterLevel(this.sequence.effects.filter);
+        Object.entries(this.sequence.volume.perInstrument.drums).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('drums', name, v);
+        });
+        Object.entries(this.sequence.volume.perInstrument.synths).forEach(([name, v]) => {
+            this.audioEngine.setInstrumentVolume('synths', name, v);
+        });
         
         // Re-render tracks with new data
         this.renderTracks();
