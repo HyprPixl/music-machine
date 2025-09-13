@@ -271,6 +271,11 @@ input.knob[type="range"]::-webkit-slider-thumb {
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: var(--primary-text);
 }
 
 .step-btn:hover {

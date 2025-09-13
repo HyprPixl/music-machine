@@ -11,6 +11,15 @@ class Sequencer {
         this.steps = 16;
         this.stepInterval = null;
         this.currentSequenceId = null;
+        // Internal note state for synth steps (MIDI numbers). Not persisted yet.
+        this.synthNotes = {
+            bass: new Array(16).fill(69),  // A4
+            lead: new Array(16).fill(69),
+            pad: new Array(16).fill(69),
+            arp: new Array(16).fill(69)
+        };
+        // Drag state for adjusting synth notes
+        this._dragState = null;
         
         // Sequence data structure
         this.sequence = {
@@ -54,6 +63,21 @@ class Sequencer {
         };
         
         this.initializeSequencer();
+    }
+
+    // ---- Note helpers ----
+    midiToFreq(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    midiToName(midi) {
+        const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        return names[((midi % 12) + 12) % 12];
+    }
+
+    noteColorForMidi(midi) {
+        const hue = (((midi % 12) + 12) % 12) * 30; // 0..330 by semitone
+        return `hsl(${hue}, 90%, 50%)`;
     }
     
     initializeSequencer() {
@@ -193,6 +217,13 @@ class Sequencer {
         const synthSounds = Object.keys(this.sequence.tracks.synths);
         synthSounds.sort((a,b) => (this.sequence.removed.synths[a] === this.sequence.removed.synths[b]) ? 0 : (this.sequence.removed.synths[a] ? 1 : -1));
         
+        // Ensure note arrays exist and match steps
+        synthSounds.forEach(name => {
+            if (!this.synthNotes[name] || this.synthNotes[name].length !== this.steps) {
+                this.synthNotes[name] = new Array(this.steps).fill(69);
+            }
+        });
+
         synthSounds.forEach(soundName => {
             const trackRow = document.createElement('div');
             trackRow.className = 'track-row';
@@ -246,10 +277,63 @@ class Sequencer {
                 
                 if (this.sequence.tracks.synths[soundName][i]) {
                     stepBtn.classList.add('active');
+                    // Show current note label and color when active
+                    const midi = this.synthNotes[soundName][i] ?? 69;
+                    stepBtn.textContent = this.midiToName(midi);
+                    stepBtn.style.borderColor = this.noteColorForMidi(midi);
                 }
                 
+                // Click toggles active state
                 stepBtn.addEventListener('click', () => {
                     this.toggleStep('synths', soundName, i);
+                });
+
+                // Drag up/down to change note
+                stepBtn.addEventListener('mousedown', (e) => {
+                    const startMidi = this.synthNotes[soundName][i] ?? 69;
+                    this._dragState = {
+                        sound: soundName,
+                        step: i,
+                        startY: e.clientY,
+                        startMidi,
+                        moved: false,
+                        activatedOnDrag: false,
+                        btn: stepBtn
+                    };
+                    const onMove = (ev) => {
+                        if (!this._dragState) return;
+                        const dy = this._dragState.startY - ev.clientY;
+                        const semis = Math.round(dy / 8); // 8px per semitone
+                        let midi = this._dragState.startMidi + semis;
+                        midi = Math.max(48, Math.min(84, midi)); // clamp 4 octaves
+                        // If we start dragging and the step isn't active, activate it now
+                        if (!this._dragState.activatedOnDrag && !this.sequence.tracks.synths[this._dragState.sound][this._dragState.step]) {
+                            this.sequence.tracks.synths[this._dragState.sound][this._dragState.step] = true;
+                            this._dragState.btn.classList.add('active');
+                            this._dragState.activatedOnDrag = true;
+                        }
+                        if (midi !== this.synthNotes[this._dragState.sound][this._dragState.step]) {
+                            this._dragState.moved = true;
+                            this.synthNotes[this._dragState.sound][this._dragState.step] = midi;
+                            // Update UI label/color
+                            this._dragState.btn.textContent = this.midiToName(midi);
+                            this._dragState.btn.style.borderColor = this.noteColorForMidi(midi);
+                            // Optional: preview note while dragging
+                            this.audioEngine.playSynthSound(this._dragState.sound, this.midiToFreq(midi));
+                        }
+                    };
+                    const onUp = (ev) => {
+                        if (this._dragState && this._dragState.moved) {
+                            // Prevent click toggle if we dragged
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                        }
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                        this._dragState = null;
+                    };
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
                 });
                 
                 stepsContainer.appendChild(stepBtn);
@@ -343,6 +427,16 @@ class Sequencer {
         
         if (stepBtn) {
             stepBtn.classList.toggle('active', !currentState);
+            if (!currentState && instrument === 'synths') {
+                // Ensure note label/color visible when activating
+                const midi = this.synthNotes[sound]?.[step] ?? 69;
+                stepBtn.textContent = this.midiToName(midi);
+                stepBtn.style.borderColor = this.noteColorForMidi(midi);
+            } else if (currentState && instrument === 'synths') {
+                // Clearing label/color when deactivating
+                stepBtn.textContent = '';
+                stepBtn.style.borderColor = '';
+            }
         }
         
         // Play sound for immediate feedback
@@ -350,7 +444,8 @@ class Sequencer {
             if (instrument === 'drums') {
                 this.audioEngine.playDrumSound(sound);
             } else {
-                this.audioEngine.playSynthSound(sound, 440);
+                const midi = this.synthNotes[sound]?.[step] ?? 69;
+                this.audioEngine.playSynthSound(sound, this.midiToFreq(midi));
             }
         }
     }
@@ -401,7 +496,8 @@ class Sequencer {
         // Play synth sounds (skip removed)
         Object.keys(this.sequence.tracks.synths).forEach(soundName => {
             if (!this.sequence.removed.synths[soundName] && this.sequence.tracks.synths[soundName][step]) {
-                this.audioEngine.playSynthSound(soundName, 440);
+                const midi = this.synthNotes[soundName]?.[step] ?? 69;
+                this.audioEngine.playSynthSound(soundName, this.midiToFreq(midi));
                 this.highlightPlayingStep('synths', soundName, step);
             }
         });
