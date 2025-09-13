@@ -55,6 +55,7 @@ class MusicMachineApp {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            if (e.defaultPrevented) return; // grid editing may consume keys like Space/Tab
             this.handleKeyboardShortcuts(e);
         });
     }

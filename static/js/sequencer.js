@@ -675,7 +675,10 @@ class Sequencer {
         if (isSynth && letters.includes(key.toUpperCase())) {
             e.preventDefault();
             this.setNoteByLetter(sound, step, key.toUpperCase());
+            if (e.shiftKey) this.adjustNote(1);
             this.setStep('synths', sound, step, true);
+            // Auto-advance to next step after typing a note
+            this.moveSelection(1, 0);
             return true;
         }
         if (isSynth && key === '#') {
@@ -701,8 +704,14 @@ class Sequencer {
         if (code === 'Backspace') {
             e.preventDefault(); this.setStep(instrument, sound, step, false); this.moveSelection(-1, 0); return true;
         }
-        if (code === 'Tab') {
+        if (code === 'Space') {
             e.preventDefault(); this.jumpToNextActive(); return true;
+        }
+        if (code === 'Tab') {
+            e.preventDefault();
+            const inc = Math.max(1, Math.round(this.stepsPerBar() / this.timeSignature.num));
+            this.moveSelection(inc, 0);
+            return true;
         }
         return false;
     }
