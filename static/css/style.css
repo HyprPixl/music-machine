@@ -116,6 +116,25 @@ body {
   gap: 4px;
 }
 
+.timesig-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.timesig-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.timesig-edit select {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  padding: 4px 6px;
+}
+
 .bars-edit {
   display: flex;
   align-items: center;

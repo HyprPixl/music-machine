@@ -8,7 +8,8 @@ class Sequencer {
         this.isPlaying = false;
         this.currentStep = 0;
         this.bpm = 120;
-        this.steps = 16; // steps = 16 * bars
+        this.timeSignature = { num: 4, den: 4 }; // global time signature
+        this.steps = 16; // steps = stepsPerBar * bars
         this.stepInterval = null;
         this.currentSequenceId = null;
         // Internal note state for synth steps (MIDI numbers). Not persisted yet.
@@ -442,6 +443,18 @@ class Sequencer {
             minus.addEventListener('click', () => this.addBars(-1));
             plus.addEventListener('click', () => this.addBars(1));
         }
+        // Time signature controls
+        const tsNum = document.getElementById('timesig-num');
+        const tsDen = document.getElementById('timesig-den');
+        if (tsNum && tsDen) {
+            const onTsChange = () => {
+                this.timeSignature.num = parseInt(tsNum.value);
+                this.timeSignature.den = parseInt(tsDen.value);
+                this.applyTimeSignature();
+            };
+            tsNum.addEventListener('change', onTsChange);
+            tsDen.addEventListener('change', onTsChange);
+        }
         // Pattern buttons
         document.querySelectorAll('.pattern-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -661,11 +674,22 @@ class Sequencer {
         });
     }
 
-    // ---- Bars management ----
-    getBars() { return Math.max(1, Math.round(this.steps / 16)); }
+    // ---- Bars & Time Signature management ----
+    stepsPerBar() {
+        // Keep a 16th-note resolution grid: steps per bar = numerator * (16 / denominator)
+        return Math.max(1, Math.round(this.timeSignature.num * (16 / this.timeSignature.den)));
+    }
+    getBars() {
+        // Bars are pattern-specific
+        return this.patterns.store[this.patterns.active]?.bars || 1;
+    }
     setBars(bars) {
-        const clamped = Math.max(1, Math.min(8, bars)); // allow up to 8 bars for now
-        const newSteps = clamped * 16;
+        const clamped = Math.max(1, Math.min(16, bars)); // allow up to 16 bars for now
+        // Persist bars to active pattern
+        const pat = this.patterns.store[this.patterns.active];
+        if (!pat) return;
+        pat.bars = clamped;
+        const newSteps = clamped * this.stepsPerBar();
         if (newSteps === this.steps) return;
         this.steps = newSteps;
         this.sequence.steps = newSteps;
@@ -701,11 +725,18 @@ class Sequencer {
         if (el) el.textContent = String(this.getBars());
     }
 
+    applyTimeSignature() {
+        // Recompute steps based on current pattern bars and new TS
+        const bars = this.getBars();
+        this.setBars(bars); // setBars handles recompute + resize + render
+    }
+
     // ---- Pattern management ----
     createEmptyPattern() {
         const len = this.steps;
         const makeTrack = () => new Array(len).fill(false);
         return {
+            bars: 1,
             tracks: {
                 drums: { kick: makeTrack(), snare: makeTrack(), hihat: makeTrack(), openhat: makeTrack(), crash: makeTrack(), clap: makeTrack() },
                 synths: { bass: makeTrack(), lead: makeTrack(), pad: makeTrack(), arp: makeTrack() }
@@ -718,6 +749,7 @@ class Sequencer {
         const resize = (arr, L, fillVal=false) => arr.length < L ? arr.concat(new Array(L - arr.length).fill(fillVal)) : arr.slice(0, L);
         for (let i = 1; i <= 4; i++) {
             const p = this.patterns.store[i];
+            if (!p) continue;
             ['kick','snare','hihat','openhat','crash','clap'].forEach(n => p.tracks.drums[n] = resize(p.tracks.drums[n], len, false));
             ['bass','lead','pad','arp'].forEach(n => {
                 p.tracks.synths[n] = resize(p.tracks.synths[n], len, false);
@@ -732,13 +764,17 @@ class Sequencer {
         store.tracks = deepCopy(this.sequence.tracks);
         store.removed = deepCopy(this.sequence.removed);
         store.synthNotes = deepCopy(this.synthNotes);
+        store.bars = this.getBars();
     }
     applyPattern(i) {
         if (!this.patterns.store[i]) return;
         this.saveCurrentPattern();
         const deepCopy = (o) => JSON.parse(JSON.stringify(o));
         const p = this.patterns.store[i];
-        // Ensure sizes match current steps
+        // Ensure sizes match target steps based on this pattern's bars and current TS
+        const newSteps = (p.bars || 1) * this.stepsPerBar();
+        this.steps = newSteps;
+        this.sequence.steps = newSteps;
         this.resizePatternsTo(this.steps);
         this.sequence.tracks = deepCopy(p.tracks);
         this.sequence.removed = deepCopy(p.removed);
@@ -747,6 +783,8 @@ class Sequencer {
         // Re-render UI for new pattern
         this.renderTracks();
         this.updatePatternButtons();
+        this.updateBarsDisplay();
+        this.renderStepIndicators();
     }
     requestPattern(i) {
         if (i === this.patterns.active) return;
