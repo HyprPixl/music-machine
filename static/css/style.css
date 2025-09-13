@@ -109,6 +109,30 @@ body {
   gap: 4px;
 }
 
+.bars-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bars-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mini-btn {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-bg);
+  border: 1px solid var(--grid-border);
+  border-radius: var(--border-radius);
+  color: var(--primary-text);
+  font-size: var(--font-size-large);
+  cursor: pointer;
+}
+
 .bpm-control label {
   font-size: var(--font-size-small);
   color: var(--secondary-text);

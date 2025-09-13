@@ -51,12 +51,7 @@ class MusicMachineApp {
         // Modal events
         this.bindModalEvents();
         
-        // Pattern buttons
-        document.querySelectorAll('.pattern-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.selectPattern(btn.dataset.pattern);
-            });
-        });
+        // Pattern buttons are handled by Sequencer now for quantized switching
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -192,17 +187,10 @@ class MusicMachineApp {
         document.getElementById('sequence-modal').style.display = 'none';
     }
     
+    // selectPattern handled by Sequencer (quantized). Keeping function stub if referenced.
     selectPattern(patternNumber) {
-        // Remove active class from all pattern buttons
-        document.querySelectorAll('.pattern-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Add active class to selected pattern
-        document.querySelector(`[data-pattern="${patternNumber}"]`).classList.add('active');
-        
-        console.log('Selected pattern:', patternNumber);
-        // In a full implementation, this would switch between different sequence patterns
+        const n = parseInt(patternNumber);
+        this.sequencer?.requestPattern(n);
     }
     
     handleKeyboardShortcuts(e) {

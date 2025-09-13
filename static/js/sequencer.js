@@ -8,7 +8,7 @@ class Sequencer {
         this.isPlaying = false;
         this.currentStep = 0;
         this.bpm = 120;
-        this.steps = 16;
+        this.steps = 16; // steps = 16 * bars
         this.stepInterval = null;
         this.currentSequenceId = null;
         // Internal note state for synth steps (MIDI numbers). Not persisted yet.
@@ -20,6 +20,12 @@ class Sequencer {
         };
         // Drag state for adjusting synth notes
         this._dragState = null;
+        // Pattern management
+        this.patterns = {
+            active: 1,
+            pending: null,
+            store: {}
+        };
         
         // Sequence data structure
         this.sequence = {
@@ -139,11 +145,20 @@ class Sequencer {
         Object.entries(this.sequence.volume.perInstrument.synths).forEach(([name, v]) => {
             this.audioEngine.setInstrumentVolume('synths', name, v);
         });
+
+        // Initialize patterns store from current state (4 slots)
+        for (let i = 1; i <= 4; i++) {
+            this.patterns.store[i] = this.createEmptyPattern();
+        }
+        this.saveCurrentPattern();
+        this.updatePatternButtons();
+        this.updateBarsDisplay();
     }
     
     renderStepIndicators() {
         const container = document.getElementById('step-indicators');
         container.innerHTML = '';
+        container.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
         
         for (let i = 0; i < this.steps; i++) {
             const stepDiv = document.createElement('div');
@@ -199,6 +214,7 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
             
             for (let i = 0; i < this.steps; i++) {
                 const stepBtn = document.createElement('button');
@@ -276,6 +292,7 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 1fr)`;
             
             for (let i = 0; i < this.steps; i++) {
                 const stepBtn = document.createElement('button');
@@ -417,6 +434,21 @@ class Sequencer {
             this.sequence.effects.filter = value;
             this.updateEffectDisplay('filter', value);
         });
+
+        // Bars controls
+        const minus = document.getElementById('bars-minus');
+        const plus = document.getElementById('bars-plus');
+        if (minus && plus) {
+            minus.addEventListener('click', () => this.addBars(-1));
+            plus.addEventListener('click', () => this.addBars(1));
+        }
+        // Pattern buttons
+        document.querySelectorAll('.pattern-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = parseInt(btn.dataset.pattern);
+                this.requestPattern(target);
+            });
+        });
     }
 
     toggleInstrumentRemoved(section, sound) {
@@ -503,6 +535,11 @@ class Sequencer {
         
         this.stepInterval = setInterval(() => {
             this.playStep();
+            // At end of loop, apply pending pattern
+            if (this.currentStep === this.steps - 1 && this.patterns.pending) {
+                this.applyPattern(this.patterns.pending);
+                this.patterns.pending = null;
+            }
             this.currentStep = (this.currentStep + 1) % this.steps;
             this.updateStepIndicator();
         }, this.getStepDuration());
@@ -621,6 +658,108 @@ class Sequencer {
         // Update UI
         document.querySelectorAll('.step-btn.active').forEach(btn => {
             btn.classList.remove('active');
+        });
+    }
+
+    // ---- Bars management ----
+    getBars() { return Math.max(1, Math.round(this.steps / 16)); }
+    setBars(bars) {
+        const clamped = Math.max(1, Math.min(8, bars)); // allow up to 8 bars for now
+        const newSteps = clamped * 16;
+        if (newSteps === this.steps) return;
+        this.steps = newSteps;
+        this.sequence.steps = newSteps;
+        // Resize tracks
+        const resize = (arr, len, fillVal=false) => {
+            if (arr.length === len) return arr;
+            if (arr.length < len) return arr.concat(new Array(len - arr.length).fill(fillVal));
+            return arr.slice(0, len);
+        };
+        Object.keys(this.sequence.tracks.drums).forEach(name => {
+            this.sequence.tracks.drums[name] = resize(this.sequence.tracks.drums[name], newSteps, false);
+        });
+        Object.keys(this.sequence.tracks.synths).forEach(name => {
+            this.sequence.tracks.synths[name] = resize(this.sequence.tracks.synths[name], newSteps, false);
+        });
+        // Resize synth notes
+        Object.keys(this.synthNotes).forEach(name => {
+            this.synthNotes[name] = resize(this.synthNotes[name], newSteps, 69);
+        });
+        // Re-render UI
+        this.renderStepIndicators();
+        this.renderTracks();
+        this.updateBarsDisplay();
+        // Keep step index within bounds
+        this.currentStep = this.currentStep % this.steps;
+        if (this.isPlaying) this.updateStepInterval();
+        // Resize stored patterns to the new length
+        this.resizePatternsTo(this.steps);
+    }
+    addBars(delta) { this.setBars(this.getBars() + delta); }
+    updateBarsDisplay() {
+        const el = document.getElementById('bars-count');
+        if (el) el.textContent = String(this.getBars());
+    }
+
+    // ---- Pattern management ----
+    createEmptyPattern() {
+        const len = this.steps;
+        const makeTrack = () => new Array(len).fill(false);
+        return {
+            tracks: {
+                drums: { kick: makeTrack(), snare: makeTrack(), hihat: makeTrack(), openhat: makeTrack(), crash: makeTrack(), clap: makeTrack() },
+                synths: { bass: makeTrack(), lead: makeTrack(), pad: makeTrack(), arp: makeTrack() }
+            },
+            removed: { drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false }, synths: { bass: false, lead: false, pad: false, arp: false } },
+            synthNotes: { bass: new Array(len).fill(69), lead: new Array(len).fill(69), pad: new Array(len).fill(69), arp: new Array(len).fill(69) }
+        };
+    }
+    resizePatternsTo(len) {
+        const resize = (arr, L, fillVal=false) => arr.length < L ? arr.concat(new Array(L - arr.length).fill(fillVal)) : arr.slice(0, L);
+        for (let i = 1; i <= 4; i++) {
+            const p = this.patterns.store[i];
+            ['kick','snare','hihat','openhat','crash','clap'].forEach(n => p.tracks.drums[n] = resize(p.tracks.drums[n], len, false));
+            ['bass','lead','pad','arp'].forEach(n => {
+                p.tracks.synths[n] = resize(p.tracks.synths[n], len, false);
+                p.synthNotes[n] = resize(p.synthNotes[n], len, 69);
+            });
+        }
+    }
+    saveCurrentPattern() {
+        const i = this.patterns.active;
+        const deepCopy = (o) => JSON.parse(JSON.stringify(o));
+        const store = this.patterns.store[i];
+        store.tracks = deepCopy(this.sequence.tracks);
+        store.removed = deepCopy(this.sequence.removed);
+        store.synthNotes = deepCopy(this.synthNotes);
+    }
+    applyPattern(i) {
+        if (!this.patterns.store[i]) return;
+        this.saveCurrentPattern();
+        const deepCopy = (o) => JSON.parse(JSON.stringify(o));
+        const p = this.patterns.store[i];
+        // Ensure sizes match current steps
+        this.resizePatternsTo(this.steps);
+        this.sequence.tracks = deepCopy(p.tracks);
+        this.sequence.removed = deepCopy(p.removed);
+        this.synthNotes = deepCopy(p.synthNotes);
+        this.patterns.active = i;
+        // Re-render UI for new pattern
+        this.renderTracks();
+        this.updatePatternButtons();
+    }
+    requestPattern(i) {
+        if (i === this.patterns.active) return;
+        if (this.isPlaying) {
+            this.patterns.pending = i;
+        } else {
+            this.applyPattern(i);
+        }
+    }
+    updatePatternButtons() {
+        document.querySelectorAll('.pattern-btn').forEach(btn => {
+            const num = parseInt(btn.dataset.pattern);
+            btn.classList.toggle('active', num === this.patterns.active);
         });
     }
     
