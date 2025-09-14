@@ -1,4 +1,9 @@
-Flask==2.3.3
-Flask-CORS==4.0.0
+# Core dependencies
+flask==2.3.3
 python-dotenv==1.0.0
+
+# Flask extensions (install after Flask)
+flask-cors==4.0.0
+
+# WSGI server
 gunicorn==21.2.0
