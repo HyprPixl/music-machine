@@ -162,7 +162,7 @@ class Sequencer {
     renderStepIndicators() {
         const container = document.getElementById('step-indicators');
         container.innerHTML = '';
-        container.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
+        container.style.gridTemplateColumns = `repeat(${this.steps}, minmax(40px, 1fr))`;
         
         for (let i = 0; i < this.steps; i++) {
             const stepDiv = document.createElement('div');
@@ -220,7 +220,7 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
-            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, minmax(40px, 1fr))`;
             const scroller = document.createElement('div');
             scroller.className = 'steps-scroll steps-scroller';
             
@@ -304,7 +304,7 @@ class Sequencer {
             // Step buttons
             const stepsContainer = document.createElement('div');
             stepsContainer.className = 'step-buttons';
-            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, 40px)`;
+            stepsContainer.style.gridTemplateColumns = `repeat(${this.steps}, minmax(40px, 1fr))`;
             const scroller = document.createElement('div');
             scroller.className = 'steps-scroll steps-scroller';
             
@@ -721,8 +721,16 @@ class Sequencer {
         if (code === 'Backspace') {
             e.preventDefault(); this.setStep(instrument, sound, step, false); this.moveSelection(-1, 0); return true;
         }
+        // Space: move to next spot (not necessarily next active)
         if (code === 'Space') {
-            e.preventDefault(); this.jumpToNextActive(); return true;
+            e.preventDefault(); this.moveSelection(1, 0); return true;
+        }
+        // Drums: 'X' activates current cell and advances
+        if (!isSynth && (key === 'x' || key === 'X')) {
+            e.preventDefault();
+            this.setStep('drums', sound, step, true);
+            this.moveSelection(1, 0);
+            return true;
         }
         if (code === 'Tab') {
             e.preventDefault();
