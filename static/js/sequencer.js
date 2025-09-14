@@ -957,15 +957,16 @@ class Sequencer {
         this.saveCurrentPattern();
         const deepCopy = (o) => JSON.parse(JSON.stringify(o));
         const p = this.patterns.store[i];
+        // Apply pattern data first, then resize all patterns
+        this.sequence.tracks = deepCopy(p.tracks);
+        this.sequence.removed = deepCopy(p.removed);
+        this.synthNotes = deepCopy(p.synthNotes);
+        this.patterns.active = i;
         // Ensure sizes match target steps based on this pattern's bars and current TS
         const newSteps = (p.bars || 1) * this.stepsPerBar();
         this.steps = newSteps;
         this.sequence.steps = newSteps;
         this.resizePatternsTo(this.steps);
-        this.sequence.tracks = deepCopy(p.tracks);
-        this.sequence.removed = deepCopy(p.removed);
-        this.synthNotes = deepCopy(p.synthNotes);
-        this.patterns.active = i;
         // Re-render UI for new pattern
         this.renderTracks();
         this.updatePatternButtons();
