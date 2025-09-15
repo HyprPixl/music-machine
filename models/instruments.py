@@ -99,16 +99,16 @@ class Synthesizer:
                 'release': 1.0,
                 'color': '#6c5ce7'
             },
-            'arp': {
-                'name': 'Arpeggiator',
+            'pluck': {
+                'name': 'Pluck Synth',
                 'type': 'synth',
-                'waveform': 'triangle',
-                'frequency': 330,
+                'waveform': 'pluck',
+                'frequency': 440,
                 'attack': 0.01,
                 'decay': 0.1,
-                'sustain': 0.3,
-                'release': 0.2,
-                'color': '#fd79a8'
+                'sustain': 0.5,
+                'release': 0.3,
+                'color': '#ff6b81'
             }
         }
     
