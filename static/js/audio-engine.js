@@ -59,7 +59,7 @@ class AudioEngine {
                 this.instrumentGains.drums[name] = g;
             });
 
-            const synthNames = ['bass', 'lead', 'pad', 'arp'];
+            const synthNames = ['bass', 'lead', 'pad', 'pluck'];
             synthNames.forEach(name => {
                 const g = this.audioContext.createGain();
                 g.gain.value = 0.8; // default per-instrument level
@@ -375,8 +375,9 @@ class AudioEngine {
             case 'pad':
                 this.generateSynth(frequency, 'sine', 1.2, 0.4, 0.4, 0.8, 0.8, 0.4, 'pad');
                 break;
-            case 'arp':
-                this.generateSynth(frequency, 'triangle', 0.18, 0.01, 0.08, 0.3, 0.15, 0.3, 'arp');
+            case 'pluck':
+                // Short, percussive pluck-like envelope
+                this.generateSynth(frequency, 'triangle', 0.18, 0.005, 0.08, 0.2, 0.12, 0.3, 'pluck');
                 break;
         }
     }

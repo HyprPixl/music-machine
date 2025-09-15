@@ -17,7 +17,7 @@ class Sequencer {
             bass: new Array(16).fill(69),  // A4
             lead: new Array(16).fill(69),
             pad: new Array(16).fill(69),
-            arp: new Array(16).fill(69)
+            pluck: new Array(16).fill(69)
         };
         // Drag state for adjusting synth notes
         this._dragState = null;
@@ -49,7 +49,7 @@ class Sequencer {
                     bass: new Array(16).fill(false),
                     lead: new Array(16).fill(false),
                     pad: new Array(16).fill(false),
-                    arp: new Array(16).fill(false)
+                    pluck: new Array(16).fill(false)
                 }
             },
             volume: {
@@ -58,7 +58,7 @@ class Sequencer {
                 synths: 0.8,
                 perInstrument: {
                     drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
-                    synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+                    synths: { bass: 0.7, lead: 0.6, pad: 0.6, pluck: 0.5 }
                 }
             },
             effects: {
@@ -68,7 +68,7 @@ class Sequencer {
             },
             removed: {
                 drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
-                synths: { bass: false, lead: false, pad: false, arp: false }
+                synths: { bass: false, lead: false, pad: false, pluck: false }
             }
         };
         
@@ -925,10 +925,10 @@ class Sequencer {
             bars: 1,
             tracks: {
                 drums: { kick: makeTrack(), snare: makeTrack(), hihat: makeTrack(), openhat: makeTrack(), crash: makeTrack(), clap: makeTrack() },
-                synths: { bass: makeTrack(), lead: makeTrack(), pad: makeTrack(), arp: makeTrack() }
+                synths: { bass: makeTrack(), lead: makeTrack(), pad: makeTrack(), pluck: makeTrack() }
             },
-            removed: { drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false }, synths: { bass: false, lead: false, pad: false, arp: false } },
-            synthNotes: { bass: new Array(len).fill(69), lead: new Array(len).fill(69), pad: new Array(len).fill(69), arp: new Array(len).fill(69) }
+            removed: { drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false }, synths: { bass: false, lead: false, pad: false, pluck: false } },
+            synthNotes: { bass: new Array(len).fill(69), lead: new Array(len).fill(69), pad: new Array(len).fill(69), pluck: new Array(len).fill(69) }
         };
     }
     resizePatternsTo(len) {
@@ -937,7 +937,7 @@ class Sequencer {
             const p = this.patterns.store[i];
             if (!p) continue;
             ['kick','snare','hihat','openhat','crash','clap'].forEach(n => p.tracks.drums[n] = resize(p.tracks.drums[n], len, false));
-            ['bass','lead','pad','arp'].forEach(n => {
+            ['bass','lead','pad','pluck'].forEach(n => {
                 p.tracks.synths[n] = resize(p.tracks.synths[n], len, false);
                 p.synthNotes[n] = resize(p.synthNotes[n], len, 69);
             });
@@ -1016,11 +1016,11 @@ class Sequencer {
         this.sequence.volume = this.sequence.volume || {};
         this.sequence.volume.perInstrument = this.sequence.volume.perInstrument || {
             drums: { kick: 0.8, snare: 0.8, hihat: 0.7, openhat: 0.7, crash: 0.6, clap: 0.7 },
-            synths: { bass: 0.7, lead: 0.6, pad: 0.6, arp: 0.5 }
+            synths: { bass: 0.7, lead: 0.6, pad: 0.6, pluck: 0.5 }
         };
         this.sequence.removed = this.sequence.removed || {
             drums: { kick: false, snare: false, hihat: false, openhat: false, crash: false, clap: false },
-            synths: { bass: false, lead: false, pad: false, arp: false }
+            synths: { bass: false, lead: false, pad: false, pluck: false }
         };
         this.currentSequenceId = sequenceData.id;
         this.setBpm(this.sequence.bpm);

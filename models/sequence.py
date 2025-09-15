@@ -39,7 +39,7 @@ class SequenceManager:
                     'bass': [False] * steps,
                     'lead': [False] * steps,
                     'pad': [False] * steps,
-                    'arp': [False] * steps
+                    'pluck': [False] * steps
                 }
             },
             'volume': {

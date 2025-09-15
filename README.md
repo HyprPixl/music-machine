@@ -8,7 +8,7 @@ A Flask-based music sequencer inspired by Teenage Engineering's design aesthetic
 
 - **16-step sequencer** with visual grid interface
 - **Drum machine** with 6 drum sounds (kick, snare, hi-hat, open hat, crash, clap)
-- **Synthesizer** with 4 synth types (bass, lead, pad, arp)
+- **Synthesizer** with 4 synth types (bass, lead, pad, pluck)
 - **Real-time audio synthesis** using Web Audio API
 - **Save/Load sequences** with persistent storage
 - **Mixer controls** with individual volume levels
