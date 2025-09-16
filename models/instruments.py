@@ -102,7 +102,7 @@ class Synthesizer:
             'pluck': {
                 'name': 'Pluck Synth',
                 'type': 'synth',
-                'waveform': 'pluck',
+                'waveform': 'triangle',
                 'frequency': 440,
                 'attack': 0.01,
                 'decay': 0.1,
