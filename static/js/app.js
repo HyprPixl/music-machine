@@ -90,6 +90,12 @@ class MusicMachineApp {
         try {
             const response = await this.apiClient.getInstruments();
             console.log('Loaded instruments:', response.instruments);
+            // Store instruments data globally for use by sequencer
+            window.instrumentsData = response.instruments;
+            // Update sequencer colors if it exists
+            if (this.sequencer) {
+                this.sequencer.updateInstrumentColors();
+            }
         } catch (error) {
             console.error('Failed to load instruments:', error);
         }

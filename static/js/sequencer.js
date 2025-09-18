@@ -392,6 +392,9 @@ class Sequencer {
             trackRow.appendChild(scroller);
             container.appendChild(trackRow);
         });
+        
+        // Apply instrument colors after rendering
+        this.updateInstrumentColors();
     }
     
     bindEvents() {
@@ -595,6 +598,29 @@ class Sequencer {
         this.currentStep = 0;
         this.updateStepIndicator();
         this.clearPlayingSteps();
+    }
+    
+    updateInstrumentColors() {
+        if (!window.instrumentsData) return;
+        
+        // Apply colors to synth tracks
+        Object.keys(window.instrumentsData.synths).forEach(soundName => {
+            const color = window.instrumentsData.synths[soundName].color;
+            const label = document.querySelector(`[data-instrument="synths"][data-sound="${soundName}"]`);
+            if (label && color) {
+                // Apply color to the volume fill
+                const volumeFill = label.querySelector('.volume-fill');
+                if (volumeFill) {
+                    volumeFill.style.backgroundColor = color;
+                    volumeFill.style.opacity = '0.8';
+                }
+                // Apply color to track label border/background on hover
+                label.style.borderColor = color;
+                label.style.setProperty('--track-hover-color', color);
+            }
+        });
+        
+        console.log('Updated instrument colors');
     }
     
     playStep() {
