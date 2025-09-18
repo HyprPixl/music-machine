@@ -160,7 +160,6 @@ The codebase is designed for easy expansion:
 ### Adding New Features
 
 - **MIDI Support**: Add Web MIDI API integration
-- **Recording**: Implement audio recording functionality
 - **Collaboration**: Add real-time collaboration features
 - **Sample Import**: Allow users to upload custom samples
 - **Pattern Chaining**: Create song arrangements from patterns
