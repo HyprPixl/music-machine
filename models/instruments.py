@@ -75,7 +75,7 @@ class Synthesizer:
                 'decay': 0.3,
                 'sustain': 0.7,
                 'release': 0.5,
-                'color': '#ff3838'
+                'color': '#ff69b4'
             },
             'lead': {
                 'name': 'Lead Synth',
@@ -86,7 +86,7 @@ class Synthesizer:
                 'decay': 0.2,
                 'sustain': 0.5,
                 'release': 0.3,
-                'color': '#3742fa'
+                'color': '#ff69b4'
             },
             'pad': {
                 'name': 'Pad Synth',
@@ -97,7 +97,7 @@ class Synthesizer:
                 'decay': 0.3,
                 'sustain': 0.8,
                 'release': 1.0,
-                'color': '#2ed573'
+                'color': '#ff69b4'
             },
             'pluck': {
                 'name': 'Pluck Synth',
@@ -108,7 +108,7 @@ class Synthesizer:
                 'decay': 0.1,
                 'sustain': 0.5,
                 'release': 0.3,
-                'color': '#ffa502'
+                'color': '#ff69b4'
             }
         }
     
