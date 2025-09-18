@@ -12,10 +12,6 @@ class Sequencer {
         this.steps = 16; // steps = stepsPerBar * bars
         this.stepInterval = null;
         this.currentSequenceId = null;
-        // Recording state
-        this.isRecording = false;
-        this.mediaRecorder = null;
-        this.recordedChunks = [];
         // Internal note state for synth steps (MIDI numbers). Not persisted yet.
         this.synthNotes = {
             bass: new Array(16).fill(69),  // A4
@@ -396,6 +392,9 @@ class Sequencer {
             trackRow.appendChild(scroller);
             container.appendChild(trackRow);
         });
+        
+        // Apply instrument colors after rendering
+        this.updateInstrumentColors();
     }
     
     bindEvents() {
@@ -406,10 +405,6 @@ class Sequencer {
         
         document.getElementById('stop-btn').addEventListener('click', () => {
             this.stop();
-        });
-        
-        document.getElementById('record-btn').addEventListener('click', () => {
-            this.isRecording ? this.stopRecording() : this.startRecording();
         });
         
         // BPM control
@@ -605,85 +600,27 @@ class Sequencer {
         this.clearPlayingSteps();
     }
     
-    async startRecording() {
-        try {
-            // Request access to the desktop audio stream
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    systemAudio: "include"
-                },
-                video: false
-            });
-
-            this.recordedChunks = [];
-            this.mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
-
-            this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    this.recordedChunks.push(event.data);
+    updateInstrumentColors() {
+        if (!window.instrumentsData) return;
+        
+        // Apply colors to synth tracks
+        Object.keys(window.instrumentsData.synths).forEach(soundName => {
+            const color = window.instrumentsData.synths[soundName].color;
+            const label = document.querySelector(`[data-instrument="synths"][data-sound="${soundName}"]`);
+            if (label && color) {
+                // Apply color to the volume fill
+                const volumeFill = label.querySelector('.volume-fill');
+                if (volumeFill) {
+                    volumeFill.style.backgroundColor = color;
+                    volumeFill.style.opacity = '0.8';
                 }
-            };
-
-            this.mediaRecorder.onstop = () => {
-                this.downloadRecording();
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            this.mediaRecorder.start();
-            this.isRecording = true;
-            
-            // Update UI
-            document.getElementById('record-btn').classList.add('active');
-            document.getElementById('record-btn').style.backgroundColor = '#ff4757';
-            
-            console.log('Recording started');
-        } catch (error) {
-            console.error('Failed to start recording:', error);
-            alert('Recording failed. This feature requires permission to capture system audio.');
-        }
-    }
-    
-    stopRecording() {
-        if (this.mediaRecorder && this.isRecording) {
-            this.mediaRecorder.stop();
-            this.isRecording = false;
-            
-            // Update UI
-            document.getElementById('record-btn').classList.remove('active');
-            document.getElementById('record-btn').style.backgroundColor = '';
-            
-            console.log('Recording stopped');
-        }
-    }
-    
-    downloadRecording() {
-        if (this.recordedChunks.length === 0) return;
+                // Apply color to track label border/background on hover
+                label.style.borderColor = color;
+                label.style.setProperty('--track-hover-color', color);
+            }
+        });
         
-        const blob = new Blob(this.recordedChunks, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        
-        // Create filename with timestamp
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const filename = `music-machine-${timestamp}.webm`;
-        
-        // Create download link and trigger download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // Clean up URL
-        URL.revokeObjectURL(url);
-        
-        console.log(`Recording downloaded as ${filename}`);
+        console.log('Updated instrument colors');
     }
     
     playStep() {
